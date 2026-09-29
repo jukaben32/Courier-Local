@@ -1,0 +1,512 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Courier Local — Anteproyecto</title>
+<!-- Tipografías: Space Grotesk para títulos, Manrope para texto -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+<style>
+  /* ===== Colores y medidas base ===== */
+  :root{
+    --ink:#0F1B2D;        /* azul noche: títulos y portada */
+    --ink-2:#34425A;      /* texto secundario */
+    --muted:#6B778C;
+    --paper:#FBF8F3;      /* fondo crema */
+    --card:#FFFFFF;
+    --line:#E6E0D6;
+    --accent:#FF6A1A;     /* naranja de acción */
+    --accent-soft:#FFE9DC;
+    --wa:#1FA971;         /* verde WhatsApp */
+    --wa-soft:#DDF5EA;
+    --yellow:#F2B705;
+    --red:#E0453A;
+  }
+
+  /* ===== Configuración de impresión A4 ===== */
+  @page { size: A4; margin: 0; }
+  *{ box-sizing:border-box; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+  html,body{ margin:0; padding:0; }
+  body{ background:var(--paper); color:var(--ink); font-family:'Manrope',system-ui,sans-serif; font-size:10.5pt; line-height:1.5; }
+
+  /* Cada hoja mide exactamente un A4 */
+  .page{ width:210mm; height:297mm; padding:18mm 17mm 16mm; position:relative; overflow:hidden; page-break-after:always; background:var(--paper); }
+  .page:last-child{ page-break-after:auto; }
+
+  h1,h2,h3{ font-family:'Space Grotesk',sans-serif; margin:0; letter-spacing:-0.02em; }
+  h2{ font-size:25pt; line-height:1.1; margin-bottom:4mm; }
+  h3{ font-size:12.5pt; margin-bottom:1.5mm; }
+  p{ margin:0 0 3mm; }
+  .eyebrow{ font-family:'Space Grotesk'; font-size:8.5pt; font-weight:600; letter-spacing:.16em; text-transform:uppercase; color:var(--accent); margin-bottom:3mm; display:flex; align-items:center; gap:3mm; }
+  .eyebrow::before{ content:""; width:8mm; height:2px; background:var(--accent); }
+  .lead{ font-size:12pt; color:var(--ink-2); max-width:150mm; }
+
+  /* Pie de página con número */
+  .foot{ position:absolute; left:17mm; right:17mm; bottom:9mm; display:flex; justify-content:space-between; font-size:7.5pt; color:var(--muted); border-top:1px solid var(--line); padding-top:2.5mm; }
+
+  /* ===== PORTADA ===== */
+  .cover{ background:var(--ink); color:#fff; padding:0; }
+  .cover .inner{ position:absolute; inset:0; padding:22mm 20mm; display:flex; flex-direction:column; }
+  .cover .tag{ display:inline-block; font-family:'Space Grotesk'; font-size:8.5pt; letter-spacing:.18em; text-transform:uppercase; color:var(--accent); border:1px solid rgba(255,106,26,.5); padding:1.5mm 3.5mm; border-radius:20mm; align-self:flex-start; }
+  .cover h1{ font-size:58pt; line-height:.95; margin-top:14mm; }
+  .cover h1 span{ color:var(--accent); }
+  .cover .sub{ font-size:15pt; color:#C9D2E0; margin-top:6mm; max-width:140mm; line-height:1.4; }
+  .cover .map{ position:absolute; left:0; right:0; bottom:48mm; height:120mm; }
+  .cover .bottom{ margin-top:auto; display:flex; justify-content:space-between; align-items:flex-end; border-top:1px solid rgba(255,255,255,.15); padding-top:6mm; font-size:9pt; color:#9FB0C8; position:relative; }
+  .cover .bottom b{ color:#fff; font-weight:600; display:block; font-size:10.5pt; }
+
+  /* ===== Tarjetas y rejillas ===== */
+  .grid2{ display:grid; grid-template-columns:1fr 1fr; gap:5mm; }
+  .grid3{ display:grid; grid-template-columns:repeat(3,1fr); gap:4mm; }
+  .card{ background:var(--card); border:1px solid var(--line); border-radius:4mm; padding:5mm; }
+  .card p{ color:var(--ink-2); font-size:9.5pt; margin:0; }
+  .num{ font-family:'Space Grotesk'; font-weight:700; font-size:9pt; color:var(--accent); margin-bottom:2mm; }
+  .icon{ width:10mm; height:10mm; border-radius:3mm; display:grid; place-items:center; margin-bottom:3mm; }
+  .icon svg{ width:5.5mm; height:5.5mm; }
+
+  /* Frase destacada */
+  .quote{ background:var(--ink); color:#fff; border-radius:5mm; padding:9mm 10mm; margin:7mm 0; position:relative; overflow:hidden; }
+  .quote p{ font-family:'Space Grotesk'; font-size:19pt; line-height:1.2; margin:0; max-width:135mm; font-weight:600; }
+  .quote p span{ color:var(--accent); }
+  .quote small{ display:block; color:#9FB0C8; margin-top:3mm; font-size:9pt; font-family:'Manrope'; }
+
+  /* Beneficios */
+  .benefit{ display:flex; gap:4mm; align-items:flex-start; padding:4mm 0; border-bottom:1px solid var(--line); }
+  .benefit:last-child{ border-bottom:0; }
+  .benefit .dot{ flex:0 0 8mm; height:8mm; border-radius:50%; background:var(--accent-soft); color:var(--accent); display:grid; place-items:center; font-weight:800; font-size:10pt; }
+  .benefit h3{ font-size:11pt; margin:0 0 .5mm; }
+  .benefit p{ margin:0; color:var(--ink-2); font-size:9.5pt; }
+
+  /* ===== Línea de tiempo del día ===== */
+  .day{ display:grid; grid-template-columns:1fr 62mm; gap:8mm; margin-top:4mm; }
+  .steps{ position:relative; }
+  .steps::before{ content:""; position:absolute; left:5mm; top:4mm; bottom:4mm; width:2px; background:repeating-linear-gradient(var(--accent) 0 3mm, transparent 3mm 5mm); }
+  .step{ display:flex; gap:5mm; margin-bottom:4.2mm; position:relative; }
+  .step .b{ flex:0 0 10mm; height:10mm; border-radius:50%; background:var(--accent); color:#fff; font-family:'Space Grotesk'; font-weight:700; display:grid; place-items:center; font-size:11pt; box-shadow:0 0 0 2mm var(--paper); }
+  .step h3{ font-size:11.5pt; margin:1.5mm 0 .5mm; }
+  .step p{ margin:0; font-size:9.5pt; color:var(--ink-2); }
+  .step .who{ font-size:7.5pt; font-weight:700; text-transform:uppercase; letter-spacing:.08em; color:var(--muted); }
+
+  /* Teléfono con chat de WhatsApp */
+  .phone{ background:#111; border-radius:9mm; padding:3mm; box-shadow:0 6mm 14mm rgba(0,0,0,.28); }
+  .screen{ background:#ECE5DD; border-radius:6.5mm; overflow:hidden; height:150mm; display:flex; flex-direction:column; }
+  .wa-top{ background:#075E54; color:#fff; padding:3mm 4mm; font-size:8.5pt; font-weight:700; display:flex; align-items:center; gap:2.5mm; }
+  .wa-top .av{ width:7mm; height:7mm; border-radius:50%; background:var(--accent); display:grid; place-items:center; font-size:7pt; }
+  .wa-top small{ display:block; font-weight:400; opacity:.8; font-size:6.5pt; }
+  .chat{ padding:3.5mm; display:flex; flex-direction:column; gap:2mm; font-size:8pt; line-height:1.35; }
+  .bubble{ background:#fff; border-radius:2.5mm; padding:2.5mm 3mm; max-width:92%; box-shadow:0 .3mm .6mm rgba(0,0,0,.08); }
+  .bubble.me{ background:#DCF8C6; align-self:flex-end; }
+  .btns{ display:flex; flex-direction:column; gap:1.2mm; }
+  .btns div{ background:#fff; border-radius:2mm; text-align:center; color:#128C7E; font-weight:700; padding:1.8mm; font-size:7.8pt; }
+  .time{ font-size:6pt; color:var(--muted); text-align:right; margin-top:.8mm; }
+
+  /* ===== Módulos ===== */
+  .module{ display:grid; grid-template-columns:14mm 1fr; gap:4mm; background:var(--card); border:1px solid var(--line); border-radius:4mm; padding:4.5mm 5mm; margin-bottom:3.5mm; }
+  .module .icon{ margin:0; width:14mm; height:14mm; border-radius:4mm; }
+  .module .icon svg{ width:7mm; height:7mm; }
+  .module ul{ margin:1mm 0 0; padding-left:4.5mm; color:var(--ink-2); font-size:9.3pt; }
+  .module li{ margin-bottom:.6mm; }
+  .module .who{ font-size:7.5pt; font-weight:700; text-transform:uppercase; letter-spacing:.08em; color:var(--accent); }
+
+  /* ===== Tablas ===== */
+  table{ width:100%; border-collapse:separate; border-spacing:0; font-size:9.2pt; background:var(--card); border:1px solid var(--line); border-radius:4mm; overflow:hidden; }
+  th{ background:var(--ink); color:#fff; text-align:left; font-family:'Space Grotesk'; font-weight:600; padding:2.8mm 4mm; font-size:9pt; }
+  td{ padding:2.4mm 4mm; border-top:1px solid var(--line); vertical-align:top; color:var(--ink-2); }
+  td:first-child{ color:var(--ink); font-weight:600; width:43%; }
+
+  /* Semáforo de 3 días */
+  .lights{ display:grid; grid-template-columns:repeat(4,1fr); gap:3mm; margin-top:5mm; }
+  .light{ border-radius:4mm; padding:4mm; color:#fff; }
+  .light b{ font-family:'Space Grotesk'; font-size:13pt; display:block; }
+  .light span{ font-size:8.5pt; opacity:.95; display:block; margin-top:1mm; line-height:1.35; }
+
+  /* ===== Índice ===== */
+  .bar{ display:grid; grid-template-columns:50mm 1fr 12mm; align-items:center; gap:4mm; margin-bottom:3mm; font-size:9.5pt; }
+  .bar .track{ height:5mm; background:#EFE9DF; border-radius:3mm; overflow:hidden; }
+  .bar .fill{ height:100%; background:var(--accent); border-radius:3mm; }
+  .bar b{ font-family:'Space Grotesk'; text-align:right; }
+  .rule{ display:flex; gap:3mm; font-size:9.3pt; color:var(--ink-2); margin-bottom:2.2mm; }
+  .rule::before{ content:"✓"; color:var(--wa); font-weight:800; }
+  .medal{ border-radius:4mm; padding:5mm; }
+  .medal h3{ font-size:12pt; }
+  .medal p{ font-size:9.3pt; margin:0; }
+
+  /* ===== Fases ===== */
+  .phases{ display:grid; grid-template-columns:repeat(4,1fr); gap:3mm; margin-top:3mm; }
+  .phase{ background:var(--card); border:1px solid var(--line); border-radius:4mm; padding:4.5mm; border-top:1.5mm solid var(--accent); }
+  .phase .n{ font-family:'Space Grotesk'; font-size:8pt; font-weight:700; color:var(--accent); letter-spacing:.1em; text-transform:uppercase; }
+  .phase h3{ font-size:11pt; margin:1.5mm 0 2mm; }
+  .phase ul{ margin:0; padding-left:4mm; font-size:8.8pt; color:var(--ink-2); }
+  .phase li{ margin-bottom:.8mm; }
+  .need{ display:grid; grid-template-columns:repeat(2,1fr); gap:3mm; margin-top:3mm; }
+  .need div{ background:var(--accent-soft); border-radius:3.5mm; padding:4mm; font-size:9.3pt; color:var(--ink-2); }
+  .need b{ color:var(--ink); display:block; font-size:10pt; margin-bottom:.5mm; }
+  .trust{ display:grid; grid-template-columns:repeat(3,1fr); gap:3mm; margin-top:3mm; }
+  .trust div{ border:1px solid var(--line); background:var(--card); border-radius:3.5mm; padding:4mm; font-size:9pt; color:var(--ink-2); }
+  .trust b{ color:var(--ink); display:block; font-size:10pt; margin-bottom:.8mm; }
+
+  /* ===== Cuestionario ===== */
+  .q-intro{ background:var(--wa-soft); border-radius:4mm; padding:4mm 5mm; font-size:9.5pt; color:var(--ink-2); margin-bottom:4mm; }
+  .q-intro b{ color:var(--ink); }
+  .qgroup{ font-family:'Space Grotesk'; font-weight:700; font-size:10.5pt; color:var(--ink); margin:4mm 0 2mm; display:flex; align-items:center; gap:2.5mm; }
+  .qgroup span{ background:var(--ink); color:#fff; width:6mm; height:6mm; border-radius:1.5mm; display:grid; place-items:center; font-size:8pt; }
+  .q{ background:var(--card); border:1px solid var(--line); border-radius:3mm; padding:3mm 4mm; margin-bottom:2.2mm; font-size:9.3pt; }
+  .q .t{ font-weight:700; color:var(--ink); }
+  .q .known{ font-size:8.3pt; color:var(--muted); margin-top:.6mm; }
+  .q .known b{ color:var(--accent); font-weight:700; }
+  .q .ans{ border-bottom:1px dashed #C9C1B4; height:6mm; margin-top:1mm; }
+  .q .opts{ display:flex; flex-wrap:wrap; gap:2mm 5mm; margin-top:1.5mm; font-size:8.8pt; color:var(--ink-2); }
+  .q .opts span::before{ content:""; display:inline-block; width:3mm; height:3mm; border:1.3px solid var(--ink-2); border-radius:.8mm; margin-right:1.5mm; vertical-align:-.4mm; }
+
+  /* ===== Cierre ===== */
+  .next{ display:grid; grid-template-columns:repeat(4,1fr); gap:3mm; margin-top:5mm; }
+  .next div{ background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.14); border-radius:4mm; padding:5mm; }
+  .next b{ font-family:'Space Grotesk'; color:var(--accent); font-size:20pt; display:block; }
+  .next h3{ color:#fff; font-size:11pt; margin:1mm 0 1.5mm; }
+  .next p{ color:#B8C4D6; font-size:9pt; margin:0; }
+</style>
+</head>
+<body>
+
+<!-- ================= PÁGINA 1: PORTADA ================= -->
+<section class="page cover">
+  <!-- Dibujo decorativo: una ruta con paradas -->
+  <svg class="map" viewBox="0 0 800 450" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+    <defs>
+      <pattern id="g" width="40" height="40" patternUnits="userSpaceOnUse"><path d="M40 0H0V40" fill="none" stroke="rgba(255,255,255,.05)"/></pattern>
+    </defs>
+    <rect width="800" height="450" fill="url(#g)"/>
+    <path d="M-20 380 C 120 360, 150 250, 260 260 S 400 360, 480 250 S 600 90, 700 140 S 800 60, 840 70" fill="none" stroke="#FF6A1A" stroke-width="4" stroke-dasharray="2 12" stroke-linecap="round"/>
+    <g fill="#0F1B2D" stroke="#FF6A1A" stroke-width="4">
+      <circle cx="260" cy="260" r="11"/><circle cx="480" cy="250" r="11"/><circle cx="700" cy="140" r="11"/>
+    </g>
+    <g fill="#1FA971"><circle cx="150" cy="330" r="7"/><circle cx="600" cy="170" r="7"/><circle cx="390" cy="310" r="7"/></g>
+    <g font-family="Manrope" font-size="15" font-weight="700" fill="#fff">
+      <rect x="275" y="210" rx="10" width="150" height="32" fill="rgba(255,255,255,.08)"/><text x="289" y="231">✓ Entregado 9:42</text>
+      <rect x="495" y="198" rx="10" width="160" height="32" fill="rgba(255,255,255,.08)"/><text x="509" y="219">⏱ Confirmó 12–3 pm</text>
+      <rect x="560" y="90" rx="10" width="120" height="32" fill="rgba(255,106,26,.9)"/><text x="574" y="111">Próxima parada</text>
+    </g>
+  </svg>
+
+  <div class="inner">
+    <span class="tag">Anteproyecto · Propuesta para revisión</span>
+    <h1>Courier<br><span>Local</span></h1>
+    <p class="sub">Sistema inteligente de entregas para San Pedro de Macorís: avisos automáticos por WhatsApp, rutas ordenadas y prueba de entrega al instante.</p>
+
+    <div class="bottom">
+      <div><b>Septiembre 2026</b>Versión 1 — sujeta a sus respuestas</div>
+      <div style="text-align:right"><b>Incluye cuestionario</b>Págs. 8 y 9 · para completar y devolver</div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= PÁGINA 2: EL RETO Y LA PROPUESTA ================= -->
+<section class="page">
+  <div class="eyebrow">El punto de partida</div>
+  <h2>Hoy el equipo trabaja duro,<br>pero coordina a mano.</h2>
+  <p class="lead">Cuando llega el camión, los repartidores salen enseguida y cada uno se comunica con los destinatarios desde su propio teléfono. Funciona, pero cuesta tiempo, combustible y control.</p>
+
+  <div class="grid2" style="margin-top:6mm">
+    <div class="card">
+      <div class="icon" style="background:var(--accent-soft)"><svg viewBox="0 0 24 24" fill="none" stroke="#FF6A1A" stroke-width="2" stroke-linecap="round"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"/></svg></div>
+      <h3>Coordinación desde el teléfono personal</h3>
+      <p>Cada repartidor escribe y llama mientras maneja la moto. No queda registro de quién respondió ni de lo que se acordó.</p>
+    </div>
+    <div class="card">
+      <div class="icon" style="background:var(--accent-soft)"><svg viewBox="0 0 24 24" fill="none" stroke="#FF6A1A" stroke-width="2" stroke-linecap="round"><path d="M3 12h4l3 8 4-16 3 8h4"/></svg></div>
+      <h3>Viajes que no rinden</h3>
+      <p>Llegar y no encontrar a nadie, o cruzar la ciudad dos veces, significa más gasolina y menos entregas en el día.</p>
+    </div>
+    <div class="card">
+      <div class="icon" style="background:var(--accent-soft)"><svg viewBox="0 0 24 24" fill="none" stroke="#FF6A1A" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></div>
+      <h3>Un plazo de 3 días que se vigila de memoria</h3>
+      <p>El courier exige todo entregado en 3 días. Hoy no hay una vista clara de qué paquetes están en riesgo.</p>
+    </div>
+    <div class="card">
+      <div class="icon" style="background:var(--accent-soft)"><svg viewBox="0 0 24 24" fill="none" stroke="#FF6A1A" stroke-width="2" stroke-linecap="round"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="9" cy="12" r="2.5"/><path d="M14 10h4M14 14h3"/></svg></div>
+      <h3>Pagos y desempeño difíciles de medir</h3>
+      <p>Contar las entregas de cada repartidor para la quincena, y saber quién rinde mejor, toma tiempo y se presta a dudas.</p>
+    </div>
+  </div>
+
+  <div class="quote">
+    <p>Que el <span>sistema coordine</span>, para que los repartidores se dediquen a <span>entregar</span>.</p>
+    <small>Courier Local se encarga de avisar, confirmar horarios, ordenar rutas y registrar cada entrega, con el mismo equipo que usted ya tiene.</small>
+  </div>
+
+  <div class="card" style="padding:2mm 6mm">
+    <div class="benefit"><div class="dot">1</div><div><h3>Más entregas por día con el mismo equipo</h3><p>Los repartidores salen sabiendo a quién ver y a qué hora. Menos esperas, menos vueltas perdidas.</p></div></div>
+    <div class="benefit"><div class="dot">2</div><div><h3>Control total en tiempo real</h3><p>Usted ve cada paquete: avisado, confirmado, en ruta, entregado o en riesgo de vencer.</p></div></div>
+    <div class="benefit"><div class="dot">3</div><div><h3>Quincenas y bonos calculados solos</h3><p>Cada entrega queda con foto, hora y ubicación. El pago y los bonos salen de datos, no de apuntes.</p></div></div>
+  </div>
+
+  <div class="foot"><span>Courier Local · Anteproyecto</span><span>2</span></div>
+</section>
+
+<!-- ================= PÁGINA 3: UN DÍA CON COURIER LOCAL ================= -->
+<section class="page">
+  <div class="eyebrow">Cómo funciona</div>
+  <h2>Un día con Courier Local</h2>
+  <p class="lead">El trabajo empieza igual que hoy, cuando llega el camión. La diferencia es que la coordinación la hace el sistema.</p>
+
+  <div class="day">
+    <div class="steps">
+      <div class="step"><div class="b">1</div><div><div class="who">Organizadores</div><h3>Llega el camión: se escanean las etiquetas</h3><p>Con el celular se toma foto de cada etiqueta. El sistema lee la guía, el nombre, el teléfono y la dirección. Unos segundos por paquete.</p></div></div>
+      <div class="step"><div class="b">2</div><div><div class="who">Sistema + organizadores</div><h3>Asignación por zonas en un toque</h3><p>El sistema propone qué paquetes lleva cada repartidor según la zona. Los organizadores ajustan y aprueban.</p></div></div>
+      <div class="step"><div class="b">3</div><div><div class="who">Sistema</div><h3>Salen los avisos por WhatsApp</h3><p>Cada destinatario recibe un mensaje con botones para elegir su horario, o para indicar que lo busca en la oficina.</p></div></div>
+      <div class="step"><div class="b">4</div><div><div class="who">Repartidor</div><h3>La ruta se ordena sola</h3><p>A medida que la gente responde, la lista del repartidor se reordena: primero los confirmados, en el orden más corto.</p></div></div>
+      <div class="step"><div class="b">5</div><div><div class="who">Repartidor</div><h3>Entrega con foto de la cédula al instante</h3><p>Toma la foto, se sube en el acto y el paquete pasa a "Entregado". La misma foto le queda en el celular para la app del courier.</p></div></div>
+      <div class="step"><div class="b">6</div><div><div class="who">Organizadores</div><h3>Seguimiento a los que no responden</h3><p>Recordatorio automático y, si hace falta, una lista de llamadas. Lo pendiente pasa al día siguiente con su semáforo.</p></div></div>
+    </div>
+
+    <!-- Maqueta del mensaje de WhatsApp -->
+    <div>
+      <div class="phone"><div class="screen">
+        <div class="wa-top"><div class="av">CL</div><div>Courier Local<small>Cuenta de empresa</small></div></div>
+        <div class="chat">
+          <div class="bubble">Hola <b>María</b> 👋 Tu paquete de Temu ya está en San Pedro 📦<br><br>¿Cuándo te lo llevamos hoy?<div class="time">8:14</div></div>
+          <div class="btns"><div>🌅 9:00 – 12:00</div><div>☀️ 12:00 – 3:00</div><div>🌇 3:00 – 6:00</div><div>🏢 Paso a buscarlo</div></div>
+          <div class="bubble me">☀️ 12:00 – 3:00<div class="time">8:21 ✓✓</div></div>
+          <div class="bubble">¡Listo! 🙌 Comparte tu ubicación 📍 para llegar directo.<div class="time">8:21</div></div>
+          <div class="bubble me">📍 Ubicación compartida<div class="time">8:22 ✓✓</div></div>
+          <div class="bubble">Confirmado. Tu repartidor pasa entre 12 y 3. Lleva tu cédula 🪪<div class="time">8:22</div></div>
+        </div>
+      </div></div>
+      <p style="font-size:8pt;color:var(--muted);text-align:center;margin-top:3mm">Ejemplo ilustrativo del mensaje. El texto final se ajusta con usted.</p>
+    </div>
+  </div>
+
+  <div class="foot"><span>Courier Local · Anteproyecto</span><span>3</span></div>
+</section>
+
+<!-- ================= PÁGINA 4: MÓDULOS ================= -->
+<section class="page">
+  <div class="eyebrow">Qué incluye</div>
+  <h2>Cinco piezas, un solo sistema</h2>
+  <p class="lead" style="margin-bottom:5mm">Cada persona del equipo usa solo la parte que le toca, desde su celular o desde una computadora.</p>
+
+  <div class="module">
+    <div class="icon" style="background:var(--accent-soft)"><svg viewBox="0 0 24 24" fill="none" stroke="#FF6A1A" stroke-width="2" stroke-linecap="round"><path d="M4 7V5a1 1 0 0 1 1-1h2M17 4h2a1 1 0 0 1 1 1v2M20 17v2a1 1 0 0 1-1 1h-2M7 20H5a1 1 0 0 1-1-1v-2M7 12h10M9 9v6M12 9v6M15 9v6"/></svg></div>
+    <div><div class="who">Organizadores</div><h3>1. Recepción de paquetes</h3>
+      <ul><li>Foto de la etiqueta y datos llenados automáticamente; solo se corrige si hace falta.</li>
+      <li>Detecta guías repetidas, teléfonos mal escritos y varios paquetes para la misma persona (un solo aviso, una sola parada).</li>
+      <li>Marca los paquetes voluminosos que no caben bien en una moto.</li></ul></div>
+  </div>
+
+  <div class="module">
+    <div class="icon" style="background:var(--wa-soft)"><svg viewBox="0 0 24 24" fill="none" stroke="#1FA971" stroke-width="2" stroke-linecap="round"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"/><path d="M9 10h6M9 13h4"/></svg></div>
+    <div><div class="who">Automático</div><h3>2. Avisos y confirmaciones por WhatsApp</h3>
+      <ul><li>WhatsApp oficial de empresa: sin riesgo de que bloqueen el número.</li>
+      <li>Botones de horario con cupo: si una franja se llena, se ofrece la siguiente.</li>
+      <li>Opciones de "paso a buscarlo" y "punto de encuentro" (colmado, parque, cruce), útiles en zonas rurales.</li>
+      <li>Recordatorios automáticos y aviso de "entregado" al cliente.</li></ul></div>
+  </div>
+
+  <div class="module">
+    <div class="icon" style="background:#E3E9F4"><svg viewBox="0 0 24 24" fill="none" stroke="#0F1B2D" stroke-width="2" stroke-linecap="round"><circle cx="6" cy="18" r="2"/><circle cx="18" cy="6" r="2"/><path d="M8 18h6a4 4 0 0 0 0-8h-4a4 4 0 0 1 0-8h6"/></svg></div>
+    <div><div class="who">Sistema + organizadores</div><h3>3. Asignación y rutas</h3>
+      <ul><li>Zona fija para Guayacanes / Juan Dolio; el resto se reparte por cercanía con cargas parecidas.</li>
+      <li>Rutas por franja horaria y en "vueltas" según lo que carga una moto.</li>
+      <li>Bandeja aparte para lugares aislados: se decide si van hoy o se juntan para ahorrar combustible.</li></ul></div>
+  </div>
+
+  <div class="module">
+    <div class="icon" style="background:var(--accent-soft)"><svg viewBox="0 0 24 24" fill="none" stroke="#FF6A1A" stroke-width="2" stroke-linecap="round"><rect x="7" y="2" width="10" height="20" rx="2"/><path d="M11 18h2"/></svg></div>
+    <div><div class="who">Repartidores</div><h3>4. App del repartidor (hecha para la moto)</h3>
+      <ul><li>Botones grandes, se usa con una mano; abre Google Maps o Waze en cada parada.</li>
+      <li>Foto de la cédula con hora y ubicación; funciona aunque se vaya la señal.</li>
+      <li>Cada repartidor ve sus entregas del día, lo que va ganando y su índice para el bono.</li></ul></div>
+  </div>
+
+  <div class="module">
+    <div class="icon" style="background:#E3E9F4"><svg viewBox="0 0 24 24" fill="none" stroke="#0F1B2D" stroke-width="2" stroke-linecap="round"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg></div>
+    <div><div class="who">Dueño y organizadores</div><h3>5. Panel de control</h3>
+      <ul><li>Estado de cada paquete en vivo, con semáforo del plazo de 3 días.</li>
+      <li>Lista de llamadas para quienes no responden.</li>
+      <li>Reporte quincenal de pago por repartidor e índice de efectividad para los bonos.</li></ul></div>
+  </div>
+
+  <div class="foot"><span>Courier Local · Anteproyecto</span><span>4</span></div>
+</section>
+
+<!-- ================= PÁGINA 5: ESCENARIOS Y SEMÁFORO ================= -->
+<section class="page">
+  <div class="eyebrow">Sin cabos sueltos</div>
+  <h2>Preparado para cada situación</h2>
+  <p class="lead" style="margin-bottom:5mm">En la calle las cosas no siempre salen como se planean. Esto es lo que hace el sistema en cada caso.</p>
+
+  <table>
+    <tr><th>Si pasa esto…</th><th>El sistema hace esto</th></tr>
+    <tr><td>El cliente responde y elige horario</td><td>Queda confirmado y entra en la ruta de esa franja.</td></tr>
+    <tr><td>No responde en 1–2 horas</td><td>Envía un recordatorio automático.</td></tr>
+    <tr><td>Sigue sin responder</td><td>Lo pasa a la lista de llamadas de los organizadores.</td></tr>
+    <tr><td>El número no tiene WhatsApp o está mal</td><td>Avisa enseguida y lo pasa a llamada directa.</td></tr>
+    <tr><td>Responde con texto o nota de voz</td><td>Lo interpreta ("mañana en la tarde") o se lo pasa a una persona.</td></tr>
+    <tr><td>La franja elegida ya está llena</td><td>Le ofrece la siguiente franja disponible.</td></tr>
+    <tr><td>Prefiere buscarlo en la oficina</td><td>Lo marca "Retiro en oficina"; al entregarlo, se toma la foto de la cédula igual.</td></tr>
+    <tr><td>Lo recibe otra persona</td><td>Registra el nombre y la cédula de quien lo recibe.</td></tr>
+    <tr><td>Varios paquetes para la misma persona</td><td>Un solo mensaje y una sola parada.</td></tr>
+    <tr><td>No hay nadie en la casa</td><td>"Intento fallido" con foto de evidencia y mensaje automático para reprogramar.</td></tr>
+    <tr><td>El repartidor se queda sin señal</td><td>Guarda la foto y la sube cuando vuelve la conexión.</td></tr>
+    <tr><td>Paquete dañado o rechazado</td><td>Foto y motivo; queda listo para devolver.</td></tr>
+  </table>
+
+  <h3 style="margin-top:7mm;font-size:14pt">El plazo de 3 días, siempre a la vista</h3>
+  <p style="color:var(--ink-2)">Cada paquete lleva un color que cambia solo. Nada se vence sin que usted lo vea venir.</p>
+  <div class="lights">
+    <div class="light" style="background:var(--wa)"><b>Día 1</b><span>Llega, se avisa y se sale a entregar.</span></div>
+    <div class="light" style="background:var(--yellow);color:var(--ink)"><b>Día 2</b><span>Recordatorios, llamadas y reprogramaciones.</span></div>
+    <div class="light" style="background:var(--red)"><b>Día 3</b><span>Último intento. Mensaje de "último día".</span></div>
+    <div class="light" style="background:var(--ink)"><b>Cierre</b><span>Lo no entregado pasa a la lista de devolución al courier.</span></div>
+  </div>
+
+  <div class="foot"><span>Courier Local · Anteproyecto</span><span>5</span></div>
+</section>
+
+<!-- ================= PÁGINA 6: ÍNDICE Y BONOS ================= -->
+<section class="page">
+  <div class="eyebrow">Motivación con datos</div>
+  <h2>Índice de efectividad<br>y bonos</h2>
+  <p class="lead">Un puntaje del 0 al 100 por repartidor, cada mes. Mide <b>solo lo que depende del repartidor</b>: si un cliente tarda en contestar, eso no le baja puntos.</p>
+
+  <div class="card" style="margin-top:5mm;padding:6mm">
+    <div class="bar"><span>Entrega dentro del horario confirmado</span><div class="track"><div class="fill" style="width:100%"></div></div><b>35%</b></div>
+    <div class="bar"><span>Entrega al primer intento</span><div class="track"><div class="fill" style="width:71%"></div></div><b>25%</b></div>
+    <div class="bar"><span>Rapidez desde la confirmación</span><div class="track"><div class="fill" style="width:57%"></div></div><b>20%</b></div>
+    <div class="bar"><span>Evidencia completa (foto, GPS, courier)</span><div class="track"><div class="fill" style="width:57%"></div></div><b>20%</b></div>
+    <p style="font-size:8.8pt;color:var(--muted);margin:2mm 0 0">Restan puntos: devoluciones por causa del repartidor y quejas confirmadas. Los pesos son una propuesta y se ajustan con usted.</p>
+  </div>
+
+  <div class="grid2" style="margin-top:5mm">
+    <div>
+      <h3>Reglas para que sea justo</h3>
+      <div class="rule">Un mínimo de paquetes al mes para participar en el bono.</div>
+      <div class="rule">Las zonas difíciles (bateyes, zonas rurales) suman más por paquete, para que no gane siempre quien tiene la zona fácil.</div>
+      <div class="rule">Solo cuentan las entregas con foto, hora y ubicación.</div>
+      <div class="rule">Cada repartidor ve su puntaje en vivo durante el mes.</div>
+    </div>
+    <div>
+      <h3>Dificultad por zona (inicial)</h3>
+      <table style="font-size:8.8pt">
+        <tr><th>Zona</th><th>Factor</th></tr>
+        <tr><td>SPM central</td><td>1.0</td></tr>
+        <tr><td>Consuelo y Quisqueya</td><td>1.2</td></tr>
+        <tr><td>Guayacanes / Juan Dolio</td><td>1.2</td></tr>
+        <tr><td>Rural / aislado</td><td>1.4</td></tr>
+      </table>
+      <p style="font-size:8pt;color:var(--muted);margin-top:1.5mm">Se recalculan con los tiempos reales de las primeras semanas.</p>
+    </div>
+  </div>
+
+  <div class="grid2" style="margin-top:5mm">
+    <div class="medal" style="background:var(--accent-soft)"><div class="num">BONO MENSUAL</div><h3>Para todos los que cumplan</h3><p>Bono para quienes superen la meta (por ejemplo, 85 puntos), más un extra para el primer lugar. Así compiten sin desmotivarse.</p></div>
+    <div class="medal" style="background:var(--ink);color:#fff"><div class="num">BONO ANUAL</div><h3 style="color:#fff">Premio a la constancia</h3><p style="color:#C9D2E0">Según el promedio de los 12 meses. Reconoce a quien rinde todo el año, no solo en un mes bueno.</p></div>
+  </div>
+
+  <div class="foot"><span>Courier Local · Anteproyecto</span><span>6</span></div>
+</section>
+
+<!-- ================= PÁGINA 7: IMPLEMENTACIÓN ================= -->
+<section class="page">
+  <div class="eyebrow">Cómo lo hacemos realidad</div>
+  <h2>Por etapas, probando con<br>paquetes reales</h2>
+  <p class="lead">Cada etapa ya aporta valor por sí sola. Antes de pasar a la siguiente, se prueba en el día a día.</p>
+
+  <div class="phases">
+    <div class="phase"><div class="n">Etapa 0</div><h3>Preparación</h3><ul><li>Sus respuestas al cuestionario</li><li>Número de WhatsApp de la empresa</li><li>Mensajes aprobados por WhatsApp</li></ul></div>
+    <div class="phase"><div class="n">Etapa 1</div><h3>Avisos y control</h3><ul><li>Escaneo de etiquetas</li><li>WhatsApp con horarios</li><li>Panel con estados y lista de llamadas</li></ul></div>
+    <div class="phase"><div class="n">Etapa 2</div><h3>En la calle</h3><ul><li>App del repartidor</li><li>Foto de la cédula al instante</li><li>Rutas por zona y horario</li></ul></div>
+    <div class="phase"><div class="n">Etapa 3</div><h3>Optimización</h3><ul><li>Rutas optimizadas automáticamente</li><li>Índice y bonos</li><li>Reportes de quincena</li></ul></div>
+  </div>
+
+  <h3 style="margin-top:8mm;font-size:14pt">Lo que necesitamos de su parte</h3>
+  <div class="need">
+    <div><b>Un número de teléfono nuevo para la empresa</b>Un chip dedicado solo a Courier Local. El teléfono que le da el courier no se toca.</div>
+    <div><b>Cuenta de empresa en Meta (WhatsApp)</b>Le acompañamos en el registro. Podemos empezar mientras la S.R.L. termina su trámite.</div>
+    <div><b>El RNC cuando la S.R.L. esté lista</b>Con él se verifica la empresa y aumenta la cantidad de mensajes diarios permitidos.</div>
+    <div><b>Dos semanas de prueba</b>Con un grupo de paquetes reales, para medir los resultados antes de extenderlo a todo el equipo.</div>
+  </div>
+
+  <h3 style="margin-top:8mm;font-size:14pt">Tranquilidad para usted</h3>
+  <div class="trust">
+    <div><b>No toca su cuenta del courier</b>No necesitamos su usuario ni su clave. Los datos salen de la etiqueta del paquete.</div>
+    <div><b>WhatsApp oficial</b>Mensajes aprobados por Meta: sin riesgo de que bloqueen el número por enviar muchos mensajes.</div>
+    <div><b>Datos protegidos</b>Las fotos de cédulas se guardan en privado, con acceso limitado y borrado programado, conforme a la Ley 172-13.</div>
+  </div>
+
+  <div class="foot"><span>Courier Local · Anteproyecto</span><span>7</span></div>
+</section>
+
+<!-- ================= PÁGINA 8: CUESTIONARIO (1/2) ================= -->
+<section class="page">
+  <div class="eyebrow">Su turno</div>
+  <h2>Cuestionario</h2>
+  <div class="q-intro">Para cerrar el diseño, el costo y el cronograma necesitamos confirmar algunos datos. Donde dice <b>"Entendimos"</b>, solo confirme o corrija. Puede responder aquí mismo, por WhatsApp o por nota de voz.</div>
+
+  <div class="qgroup"><span>1</span>La operación diaria</div>
+  <div class="q"><div class="t">¿Cuántos paquetes llegan por día, en promedio y en los días más altos?</div><div class="known"><b>Entendimos:</b> entre 100 y 300 por día.</div><div class="ans"></div></div>
+  <div class="q"><div class="t">¿A qué hora suele llegar el camión? ¿Llega más de uno al día? ¿Qué días de la semana se reparte?</div><div class="ans"></div></div>
+  <div class="q"><div class="t">¿En qué horario pueden entregar los repartidores?</div><div class="opts"><span>9–12 / 12–3 / 3–6 me parece bien</span><span>Otro horario: __________</span></div></div>
+  <div class="q"><div class="t">¿Pueden los clientes buscar su paquete en la oficina? ¿En qué dirección y horario?</div><div class="ans"></div></div>
+  <div class="q"><div class="t">¿Llegan paquetes grandes que no caben bien en una moto? ¿Qué hacen hoy con ellos?</div><div class="ans"></div></div>
+
+  <div class="qgroup"><span>2</span>Repartidores y pagos</div>
+  <div class="q"><div class="t">Número de repartidores y de organizadores</div><div class="known"><b>Entendimos:</b> 4–5 repartidores en moto y 2 organizadores.</div><div class="opts"><span>Correcto</span><span>Corrección: __________</span></div></div>
+  <div class="q"><div class="t">¿Cuánto se paga por paquete entregado y cada cuánto?</div><div class="known"><b>Entendimos:</b> unos RD$40 por paquete, pagados cada quincena.</div><div class="opts"><span>Correcto</span><span>Corrección: __________</span></div></div>
+  <div class="q"><div class="t">¿Quién paga el combustible?</div><div class="opts"><span>El repartidor</span><span>La empresa</span><span>Mixto: __________</span></div></div>
+  <div class="q"><div class="t">¿Qué celulares usan los repartidores? ¿Tienen plan de datos?</div><div class="opts"><span>Android</span><span>iPhone</span><span>Tienen datos</span><span>Solo Wi-Fi o recargas</span></div></div>
+  <div class="q"><div class="t">¿Cuánto le gustaría destinar a los bonos (mensual y anual)?</div><div class="ans"></div></div>
+
+  <div class="foot"><span>Courier Local · Cuestionario</span><span>8</span></div>
+</section>
+
+<!-- ================= PÁGINA 9: CUESTIONARIO (2/2) ================= -->
+<section class="page">
+  <div class="qgroup" style="margin-top:0"><span>3</span>Zonas de reparto</div>
+  <div class="q"><div class="t">Zonas principales</div><div class="known"><b>Entendimos:</b> el grueso está en SPM central, Consuelo y Quisqueya; hay un repartidor fijo para Guayacanes, Juan Dolio y cercanías.</div><div class="opts"><span>Correcto</span><span>Corrección: __________</span></div></div>
+  <div class="q"><div class="t">¿Cómo se atienden hoy los lugares aislados (Los Llanos, Ramón Santana, bateyes)? ¿Quién va, cada cuánto y con cuántos paquetes?</div><div class="ans"></div><div class="ans"></div></div>
+  <div class="q"><div class="t">Para viajes a zonas aisladas, ¿prefiere pagar un recargo por paquete o reconocerlo solo en el bono?</div><div class="opts"><span>Recargo de RD$ ____ por paquete</span><span>Solo en el bono</span><span>Lo conversamos</span></div></div>
+
+  <div class="qgroup"><span>4</span>El courier y las entregas</div>
+  <div class="q"><div class="t">¿Cuántos intentos de entrega exige el courier antes de devolver un paquete?</div><div class="known"><b>Entendimos:</b> máximo 3 días para entregar; lo que no se entrega se devuelve.</div><div class="ans"></div></div>
+  <div class="q"><div class="t">¿El programa del courier permite descargar el listado de paquetes (Excel o similar)?</div><div class="opts"><span>Sí</span><span>No</span><span>No sé</span></div></div>
+  <div class="q"><div class="t">¿Estaría dispuesto a preguntarle al courier por una forma oficial de enviarle las fotos de entrega? Así se evita subir la foto dos veces.</div><div class="opts"><span>Sí, lo pregunto</span><span>Prefiero no hacerlo por ahora</span></div></div>
+  <div class="q"><div class="t">¿Durante cuánto tiempo necesita guardar las fotos de las cédulas?</div><div class="opts"><span>30 días</span><span>90 días</span><span>Lo que exija el courier: ______</span></div></div>
+
+  <div class="qgroup"><span>5</span>WhatsApp y empresa</div>
+  <div class="q"><div class="t">¿Puede conseguir un número nuevo solo para la empresa?</div><div class="opts"><span>Sí</span><span>Necesito ayuda con esto</span></div></div>
+  <div class="q"><div class="t">¿Qué nombre quiere que vean los clientes en WhatsApp?</div><div class="ans"></div></div>
+  <div class="q"><div class="t">¿Para cuándo espera tener lista la S.R.L. (y su RNC)?</div><div class="ans"></div></div>
+  <div class="q"><div class="t">¿Algo más que le preocupe o que quiera que el sistema haga?</div><div class="ans"></div><div class="ans"></div></div>
+
+  <div class="foot"><span>Courier Local · Cuestionario</span><span>9</span></div>
+</section>
+
+<!-- ================= PÁGINA 10: PRÓXIMOS PASOS ================= -->
+<section class="page cover">
+  <div class="inner">
+    <span class="tag">Próximos pasos</span>
+    <h1 style="font-size:40pt;margin-top:12mm">De la idea<br>a la <span>calle</span>.</h1>
+    <p class="sub">Con sus respuestas preparamos el plan final, con costo y cronograma, y arrancamos con una prueba real.</p>
+
+    <div class="next">
+      <div><b>01</b><h3>Sus respuestas</h3><p>Complete el cuestionario o respóndalo por WhatsApp o nota de voz.</p></div>
+      <div><b>02</b><h3>Reunión corta</h3><p>30 minutos para repasar dudas y ver el flujo con los organizadores.</p></div>
+      <div><b>03</b><h3>Plan final</h3><p>Costo, cronograma y alcance de cada etapa, por escrito.</p></div>
+      <div><b>04</b><h3>Prueba real</h3><p>Dos semanas con paquetes reales, midiendo resultados.</p></div>
+    </div>
+
+    <div class="quote" style="background:rgba(255,106,26,.12);border:1px solid rgba(255,106,26,.35);margin-top:12mm">
+      <p style="font-size:15pt">Lo que vamos a medir en la prueba: <span>% de clientes que responden</span>, <span>% de entregas al primer intento</span> y <span>entregas por repartidor al día</span>, comparados con cómo se trabaja hoy.</p>
+    </div>
+
+    <div class="bottom">
+      <div><b>Courier Local</b>Anteproyecto · Septiembre 2026</div>
+      <div style="text-align:right"><b>Gracias por su tiempo</b>Quedamos atentos a sus respuestas</div>
+    </div>
+  </div>
+</section>
+
+</body>
+</html>
