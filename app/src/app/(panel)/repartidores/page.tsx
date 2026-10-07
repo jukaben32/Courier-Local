@@ -5,7 +5,7 @@ import { diaDeRD, diasHasta, etiquetaFecha, etiquetaPeriodo, limitesPeriodo } fr
 import { obtenerUsuarioActual } from "@/lib/sesion";
 import { createClient } from "@/lib/supabase/server";
 import { Dato } from "../resumen/Tarjetas";
-import { TarjetaRepartidor, type FilaBono, type ParametrosBono } from "./TarjetaRepartidor";
+import { TarjetaRepartidor, type FilaBono, type ParametrosBono } from "@/components/TarjetaRepartidor";
 
 export const dynamic = "force-dynamic";
 

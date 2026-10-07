@@ -16,7 +16,7 @@ import {
 } from "@/lib/periodoPago";
 import { obtenerUsuarioActual } from "@/lib/sesion";
 import { createClient } from "@/lib/supabase/server";
-import type { FilaBono } from "../repartidores/TarjetaRepartidor";
+import type { FilaBono } from "@/components/TarjetaRepartidor";
 
 export const dynamic = "force-dynamic";
 
