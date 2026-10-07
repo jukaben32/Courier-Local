@@ -12,6 +12,10 @@ export const metadata: Metadata = {
 
 export const viewport: Viewport = {
   themeColor: "#0f1b2d",
+  width: "device-width",
+  initialScale: 1,
+  // Pantallas con muesca: la app usa todo el ancho y deja márgenes seguros donde hace falta
+  viewportFit: "cover",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

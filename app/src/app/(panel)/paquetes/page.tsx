@@ -111,7 +111,7 @@ export default async function PaginaPaquetes({
             </Link>
           ))}
         </div>
-        <form className="flex-1" action="/paquetes">
+        <form className="min-w-[14rem] flex-1" action="/paquetes">
           <input type="hidden" name="vista" value={vista} />
           <input
             name="q"
@@ -125,7 +125,36 @@ export default async function PaginaPaquetes({
 
       {error && <p role="alert" className="text-sm font-medium text-rojo">No se pudo cargar la lista. Recarga la página.</p>}
 
-      <div className="overflow-x-auto rounded-xl border border-linea bg-tarjeta">
+      {/* Celular: una tarjeta por paquete (la tabla de 6 columnas no cabe) */}
+      <ul className="space-y-2 md:hidden">
+        {filas.length === 0 && <li className="rounded-xl border border-linea bg-tarjeta px-4 py-10 text-center text-tinta-2">No hay paquetes en esta vista.</li>}
+        {filas.map((p) => {
+          const activo = ESTADOS_ACTIVOS.includes(p.estado);
+          const plazo = ESTILO_PLAZO[nivelPlazo(new Date(p.fecha_recibido))];
+          return (
+            <li key={p.id} className="space-y-1.5 rounded-xl border border-linea bg-tarjeta px-4 py-3 text-sm">
+              <div className="flex items-start justify-between gap-3">
+                <span className="font-medium">{p.nombre_etiqueta}</span>
+                {activo && <span className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold ${plazo.clases}`}>{plazo.texto}</span>}
+              </div>
+              <p className="text-xs text-tinta-2">
+                <span className="font-mono">{p.numero_guia}</span>
+                {p.voluminoso && <span className="ml-2 rounded bg-tinta/10 px-1.5 py-0.5 text-[11px]">Grande</span>}
+                {p.destinatarios && <> · {formatearTelefono(p.destinatarios.telefono)}</>}
+              </p>
+              <p>
+                {p.sectores?.nombre ?? <span className="text-rojo">Sin sector</span>} · {p.repartidores?.nombre ?? <span className="text-rojo">Sin asignar</span>}
+              </p>
+              <p className="font-medium">
+                {TEXTO_ESTADO[p.estado] ?? p.estado}
+                {p.intentos_realizados > 0 && activo && <span className="ml-2 text-xs font-normal text-tinta-2">({p.intentos_realizados}/3 intentos)</span>}
+              </p>
+            </li>
+          );
+        })}
+      </ul>
+
+      <div className="hidden overflow-x-auto rounded-xl border border-linea bg-tarjeta md:block">
         <table className="w-full min-w-[720px] text-left text-sm">
           <thead className="border-b border-linea bg-fondo/60 text-xs uppercase tracking-wide text-tinta-2">
             <tr>

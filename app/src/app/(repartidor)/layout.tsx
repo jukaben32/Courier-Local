@@ -13,14 +13,14 @@ export default async function LayoutRepartidor({ children }: { children: React.R
 
   return (
     <div className="mx-auto min-h-screen max-w-lg">
-      <header className="sticky top-0 z-10 flex items-center justify-between bg-tinta px-4 py-3 text-white">
+      <header className="sticky top-0 z-10 flex items-center justify-between bg-tinta px-4 pb-3 pt-[max(0.75rem,env(safe-area-inset-top))] text-white">
         <Link href="/ruta" className="font-display text-lg font-semibold">Mi ruta</Link>
         <form action={cerrarSesion} className="flex items-center gap-3 text-sm">
           <span className="text-white/70">{usuario.nombre}</span>
           <BotonSalir />
         </form>
       </header>
-      <main className="px-4 py-5">
+      <main className="px-4 pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-5">
         <SincronizadorEntregas />
         {children}
       </main>

@@ -22,7 +22,7 @@ export function MenuPrincipal({ simulado, esDueno, excepcionesPendientes }: { si
   const enlaces = [...ENLACES, ...(esDueno ? ENLACES_DUENO : []), ...(simulado ? [ENLACE_SIMULADOR] : [])];
 
   return (
-    <nav aria-label="Principal" className="flex gap-1">
+    <nav aria-label="Principal" className="deslizable flex gap-1">
       {enlaces.map((enlace) => {
         const activo = ruta.startsWith(enlace.href);
         return (
@@ -30,7 +30,7 @@ export function MenuPrincipal({ simulado, esDueno, excepcionesPendientes }: { si
             key={enlace.href}
             href={enlace.href}
             aria-current={activo ? "page" : undefined}
-            className={`rounded-md px-3 py-1.5 text-sm font-medium transition ${
+            className={`shrink-0 whitespace-nowrap rounded-md px-3 py-2 text-sm font-medium transition md:py-1.5 ${
               activo ? "bg-acento text-[#1a0900]" : "text-white/75 hover:bg-white/10 hover:text-white"
             }`}
           >

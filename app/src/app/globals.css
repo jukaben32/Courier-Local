@@ -48,6 +48,25 @@ h3 {
   outline-offset: 2px;
 }
 
+/* Celular: los campos de 16 px evitan que el iPhone haga zoom solo al tocarlos */
+@media (max-width: 767px) {
+  input,
+  select,
+  textarea {
+    font-size: 16px;
+  }
+}
+
+/* Fila que se desliza con el dedo (el menú del panel en celular), sin barra visible */
+.deslizable {
+  overflow-x: auto;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+.deslizable::-webkit-scrollbar {
+  display: none;
+}
+
 @media (prefers-reduced-motion: reduce) {
   * {
     animation: none !important;
