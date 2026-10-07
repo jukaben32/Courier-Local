@@ -1,0 +1,56 @@
+@import "tailwindcss";
+
+/* Paleta de Courier Local: azul noche (confianza), naranja (acción) y semáforo del plazo */
+:root {
+  --fondo: #eef1f5;
+  --tarjeta: #ffffff;
+  --tinta: #0f1b2d;
+  --tinta-2: #4a5870;
+  --linea: #dde3ec;
+  --acento: #f26a1b;
+  --acento-oscuro: #c9510d;
+  --verde: #1f9d6b;
+  --ambar: #d99a00;
+  --rojo: #d6453d;
+}
+
+@theme inline {
+  --color-fondo: var(--fondo);
+  --color-tarjeta: var(--tarjeta);
+  --color-tinta: var(--tinta);
+  --color-tinta-2: var(--tinta-2);
+  --color-linea: var(--linea);
+  --color-acento: var(--acento);
+  --color-acento-oscuro: var(--acento-oscuro);
+  --color-verde: var(--verde);
+  --color-ambar: var(--ambar);
+  --color-rojo: var(--rojo);
+  --font-sans: var(--font-cuerpo);
+  --font-display: var(--font-titulo);
+}
+
+body {
+  background: var(--fondo);
+  color: var(--tinta);
+  font-family: var(--font-cuerpo), system-ui, sans-serif;
+}
+
+h1,
+h2,
+h3 {
+  font-family: var(--font-titulo), system-ui, sans-serif;
+  letter-spacing: -0.02em;
+  text-wrap: balance;
+}
+
+:focus-visible {
+  outline: 2px solid var(--acento);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation: none !important;
+    transition: none !important;
+  }
+}

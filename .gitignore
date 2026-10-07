@@ -1,27 +1,6 @@
-# Environment variables
+# Archivos con claves privadas: nunca se suben a GitHub
 .env
 .env.local
-.env.*.local
 
-# Node / Dependencies
-node_modules/
-dist/
-build/
-
-# IDE & Editors
-.vscode/
-.idea/
-*.suo
-*.ntvs*
-*.njsproj
-*.sln
-*.sw?
-
-# OS Generated files
-Thumbs.db
-Thumbs.db:encryptable
-ehthumbs.db
-ehthumbs_vista.db
-*.stackdump
-[Dd]esktop.ini
-.DS_Store
+# Contraseñas de los usuarios de prueba (nunca subir)
+usuarios-demo.txt

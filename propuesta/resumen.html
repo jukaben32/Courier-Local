@@ -1,0 +1,181 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Courier Local — Resumen</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@500;600;700&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --tinta:#0f1b2d; --tinta-2:#4a5870; --linea:#dde3ec; --fondo:#eef1f5; --tarjeta:#fff;
+    --acento:#f26a1b; --acento-suave:#fde9dc; --verde:#1f9d6b; --verde-suave:#dcf3e9; --ambar:#d99a00; --ambar-suave:#fbf0cf;
+  }
+  @page { size: A4; margin: 14mm 14mm 16mm; }
+  *{ box-sizing:border-box; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+  html,body{ margin:0; padding:0; }
+  body{ font-family:'DM Sans',system-ui,sans-serif; color:var(--tinta); font-size:10.2pt; line-height:1.5; background:#fff; }
+  h1,h2,h3{ font-family:'Bricolage Grotesque',system-ui,sans-serif; letter-spacing:-0.02em; margin:0; }
+  p{ margin:0 0 2.2mm; }
+
+  .portada{ background:var(--tinta); color:#fff; border-radius:5mm; padding:9mm 10mm 8mm; margin-bottom:6mm; position:relative; overflow:hidden; }
+  .portada .etiqueta{ font-size:8pt; letter-spacing:.14em; text-transform:uppercase; color:var(--acento); font-weight:700; margin-bottom:3mm; }
+  .portada h1{ font-size:27pt; line-height:1.05; margin-bottom:3mm; }
+  .portada h1 span{ color:var(--acento); }
+  .portada p{ color:#c9d2e0; font-size:11pt; max-width:140mm; margin:0; }
+  .portada .ruta{ position:absolute; right:-10mm; top:2mm; width:90mm; height:40mm; opacity:.7; }
+
+  h2{ font-size:15pt; margin:6mm 0 3mm; display:flex; align-items:center; gap:3mm; }
+  h2 .num{ width:7mm; height:7mm; border-radius:2mm; background:var(--acento); color:#1a0900; display:grid; place-items:center; font-size:10pt; font-weight:700; flex:0 0 auto; }
+  h3{ font-size:11pt; margin-bottom:1mm; }
+
+  .grid2{ display:grid; grid-template-columns:1fr 1fr; gap:3.5mm; }
+  .tarjeta{ border:1px solid var(--linea); border-radius:3.5mm; padding:3.8mm 4.2mm; background:var(--tarjeta); break-inside:avoid; }
+  .tarjeta p{ font-size:9.4pt; color:var(--tinta-2); margin:0; }
+  .tarjeta h3{ display:flex; align-items:center; gap:2mm; }
+  .ok{ color:var(--verde); font-weight:700; }
+
+  .dia{ display:grid; grid-template-columns:repeat(5,1fr); gap:2.5mm; margin-top:2mm; }
+  .dia div{ background:var(--fondo); border-radius:3mm; padding:3mm; font-size:8.8pt; break-inside:avoid; }
+  .dia b{ display:block; font-family:'Bricolage Grotesque',sans-serif; font-size:10.5pt; color:var(--acento); margin-bottom:1mm; }
+
+  table{ width:100%; border-collapse:separate; border-spacing:0; font-size:9.4pt; border:1px solid var(--linea); border-radius:3mm; overflow:hidden; break-inside:avoid; }
+  th{ background:var(--tinta); color:#fff; text-align:left; padding:2.4mm 3.5mm; font-weight:600; }
+  td{ padding:2.3mm 3.5mm; border-top:1px solid var(--linea); vertical-align:top; }
+  td:first-child{ font-weight:600; }
+
+  .pregunta{ border:1px solid var(--linea); border-left:1.6mm solid var(--acento); border-radius:3mm; padding:3.4mm 4.2mm; margin-bottom:3mm; break-inside:avoid; background:#fff; }
+  .pregunta h3{ font-size:10.6pt; }
+  .pregunta p{ font-size:9.3pt; color:var(--tinta-2); }
+  .pregunta .rec{ display:inline-block; background:var(--verde-suave); color:#146b49; font-weight:700; font-size:8.2pt; padding:.4mm 2mm; border-radius:1.6mm; margin-bottom:1.2mm; }
+  .opinion{ border-bottom:1px dashed #b9c2d0; height:6.5mm; margin-top:1.5mm; }
+
+  .listas{ display:grid; grid-template-columns:1fr 1fr; gap:3.5mm; }
+  .lista{ border-radius:3.5mm; padding:4mm 4.4mm; break-inside:avoid; }
+  .lista h3{ margin-bottom:2mm; font-size:11.4pt; }
+  .lista ul{ margin:0; padding-left:4.4mm; font-size:9.4pt; }
+  .lista li{ margin-bottom:1.3mm; }
+  .tuya{ background:var(--acento-suave); }
+  .nuestra{ background:var(--fondo); }
+
+  .cierre{ background:var(--verde-suave); border-radius:3.5mm; padding:4mm 4.6mm; margin-top:5mm; break-inside:avoid; }
+  .cierre h3{ color:#146b49; }
+  .nota{ font-size:8.4pt; color:var(--tinta-2); }
+  .pie{ margin-top:5mm; font-size:8pt; color:var(--tinta-2); text-align:center; }
+</style>
+</head>
+<body>
+
+<section class="portada">
+  <svg class="ruta" viewBox="0 0 360 160" aria-hidden="true">
+    <path d="M-10 130 C 60 120, 80 60, 150 70 S 250 130, 300 60 S 350 20, 380 25" fill="none" stroke="#f26a1b" stroke-width="3" stroke-dasharray="2 10" stroke-linecap="round"/>
+    <g fill="#0f1b2d" stroke="#f26a1b" stroke-width="3"><circle cx="150" cy="70" r="8"/><circle cx="300" cy="60" r="8"/></g>
+    <circle cx="80" cy="108" r="5" fill="#1f9d6b"/><circle cx="235" cy="100" r="5" fill="#1f9d6b"/>
+  </svg>
+  <div class="etiqueta">Resumen · Octubre 2026</div>
+  <h1>Courier <span>Local</span></h1>
+  <p>Dónde estamos, qué decisiones necesitamos de ti y qué falta para arrancar.</p>
+</section>
+
+<p><b>La idea en una frase:</b> el sistema avisa a cada cliente por WhatsApp, recoge su horario y su ubicación, arma la ruta más rápida para cada repartidor y guarda la prueba de entrega al instante. <b>La meta es terminar temprano</b>: cuando el courier ve que se cierra temprano, manda más paquetes al día siguiente.</p>
+
+<h2><span class="num">1</span>Lo que ya tenemos construido</h2>
+<p class="nota">Todo está en etapa de pruebas con datos inventados. Nada ha salido todavía a clientes reales.</p>
+<div class="grid2">
+  <div class="tarjeta"><h3><span class="ok">✓</span> Recibir paquetes</h3><p>El organizador toma una foto de la etiqueta y el sistema lee la guía, el nombre, el teléfono y la dirección. Cada paquete se asigna solo al repartidor de su sector. Ya están cargados los 4 repartidores y 84 sectores de la provincia; los paquetes grandes van a la minivan.</p></div>
+  <div class="tarjeta"><h3><span class="ok">✓</span> Avisos por WhatsApp</h3><p>Un mensaje por cliente con los horarios para elegir con un toque. Después se le pide <b>siempre</b> su ubicación, aunque ya tengamos la dirección. Preparado para enviar cientos a la vez. Hay 6 mensajes redactados (aviso, recordatorio, último día, en camino, entregado, intento fallido).</p></div>
+  <div class="tarjeta"><h3><span class="ok">✓</span> App del repartidor</h3><p>Ve su ruta, navega con un toque, fotografía la cédula y el sistema comprueba que el nombre coincida con el del paquete. Si el celular se queda sin señal, la entrega se guarda y se envía sola al volver. Comparte la foto para subirla al courier.</p></div>
+  <div class="tarjeta"><h3><span class="ok">✓</span> Panel de control</h3><p>Todos los paquetes con un semáforo del plazo de 3 días, el <b>cierre del día</b> (hora de la última entrega, entregas por hora) y quién tiene pruebas sin subir al courier y desde hace cuánto.</p></div>
+  <div class="tarjeta"><h3><span class="ok">✓</span> Pagos y bonos</h3><p>La quincena de cada repartidor se calcula sola (RD$40 en San Pedro, RD$55 en los municipios). El índice de efectividad para los bonos mensual y anual está listo, con montos de ejemplo.</p></div>
+  <div class="tarjeta"><h3><span class="ok">✓</span> Seguridad</h3><p>Las fotos de cédulas se guardan en un espacio privado. Cada persona ve solo lo suyo: el repartidor, sus paquetes; la oficina, todo. Una entrega no se puede marcar como hecha con una cédula que no coincide.</p></div>
+</div>
+
+<h2><span class="num">2</span>Cómo sería un día</h2>
+<div class="dia">
+  <div><b>12:00</b>Llega el camión y se escanean las etiquetas.</div>
+  <div><b>12:30</b>Salen los avisos por WhatsApp, por lotes.</div>
+  <div><b>Después</b>Cada cliente elige horario y manda su ubicación.</div>
+  <div><b>Ruta</b>El sistema ordena la ruta de cada repartidor con esas respuestas.</div>
+  <div><b>Entrega</b>Foto de la cédula y la prueba queda registrada al instante.</div>
+</div>
+
+<h2><span class="num">3</span>Lo que dudamos: necesitamos tu opinión</h2>
+
+<div class="pregunta">
+  <h3>A. El costo de WhatsApp</h3>
+  <p>Meta cobra por cada mensaje que enviamos primero. La tarifa para República Dominicana es de unos <b>US$0.0113 por mensaje</b> (dato por confirmar en la cuenta). Hay una duda: desde octubre Meta pudo empezar a cobrar también las respuestas que damos dentro de las 24 horas. Estimado al mes, con 26 días de reparto:</p>
+  <table>
+    <tr><th>Por cliente: aviso + 3 respuestas</th><th>100 clientes al día</th><th>300 clientes al día</th></tr>
+    <tr><td>Si solo cobran el primer mensaje</td><td>≈ US$29</td><td>≈ US$88</td></tr>
+    <tr><td>Si cobran todo</td><td>≈ US$106</td><td>≈ US$341</td></tr>
+    <tr><td>Si cobran todo y mandamos "en camino" y "entregado" a todos</td><td>≈ US$176</td><td>≈ US$520</td></tr>
+  </table>
+  <p style="margin-top:2mm">Se paga con tarjeta en Meta. Para ponerlo en perspectiva: en el peor caso son unos RD$4 por paquete. <b>¿Cuánto te paga el courier por cada paquete entregado?</b> Con ese dato vemos qué parte del ingreso representa.</p>
+  <div class="opinion"></div>
+</div>
+
+<div class="pregunta">
+  <h3>B. ¿Cuánto esperamos antes de insistir al cliente que no responde?</h3>
+  <span class="rec">Propuesta</span>
+  <p>Un recordatorio a los <b>90 minutos</b>, solo a quien nadie ha confirmado; otro a las 8:00 am del día siguiente y uno de "último día" el tercer día. Nunca de noche (solo entre 8:00 am y 7:00 pm) y como máximo 4 mensajes por paquete, para no cansar al cliente ni bajar la calidad del número. El intervalo se puede cambiar; lo afinamos con las respuestas reales de la primera semana.</p>
+  <div class="opinion"></div>
+</div>
+
+<div class="pregunta">
+  <h3>C. Los clientes que no responden ni al recordatorio</h3>
+  <span class="rec">Propuesta</span>
+  <p>Que pasen a una <b>lista de llamadas para los 2 organizadores</b>, que quedan libres después de escanear. Los repartidores no llaman: solo siguen la ruta. La otra opción es dejarlos para el día siguiente y seguir insistiendo por WhatsApp, pero se pierden entregas si el cliente no ve los mensajes.</p>
+  <div class="opinion"></div>
+</div>
+
+<div class="pregunta">
+  <h3>D. Enviar la prueba al programa del courier</h3>
+  <p>Hoy no hay conexión automática con el programa del courier, y por ahora no queremos pedirle nada. El sistema guarda la prueba al instante y le da al repartidor un botón para compartir la foto al courier en un toque. <b>¿Qué pide la app del courier al entregar</b> (solo la foto, el número de cédula, escanear la guía)? <b>¿Tiene versión web, carga masiva o algún correo donde recibir pruebas?</b> A futuro, pedirle una vía oficial sería lo ideal: la prueba llegaría sola.</p>
+  <div class="opinion"></div>
+</div>
+
+<div class="pregunta">
+  <h3>E. Cédula y nombre del paquete</h3>
+  <p>El courier exige que la cédula coincida con el nombre de la etiqueta. En Temu la gente a veces pone apodos o nombres cortados ("Mari", "Juan P."). <b>¿Qué acepta el courier en esos casos?</b> Hoy el sistema acepta el nombre si coinciden al menos dos palabras, y si no, un organizador puede autorizar la excepción dejando escrito el motivo.</p>
+  <div class="opinion"></div>
+</div>
+
+<div class="pregunta">
+  <h3>F. Los bonos de los repartidores</h3>
+  <p>Hay un índice de efectividad (cumplir el horario, entregar al primer intento, subir la prueba completa y a tiempo). Los montos son de ejemplo: bono mensual de RD$1,500 para quien llegue a 85 puntos con al menos 150 paquetes, RD$1,000 extra al primer lugar del mes, y RD$5,000 al mejor del año. <b>¿Cuánto quieres destinar de verdad?</b></p>
+  <div class="opinion"></div>
+</div>
+
+<h2><span class="num">4</span>Lo que falta</h2>
+<div class="listas">
+  <div class="lista tuya">
+    <h3>De tu parte</h3>
+    <ul>
+      <li>Un <b>número de teléfono nuevo</b> para el negocio, dentro de la app WhatsApp Business (no el del courier).</li>
+      <li>Crear la cuenta de <b>Meta Business</b> y la de <b>YCloud</b> (tenemos una guía paso a paso) y dejar una tarjeta en Meta.</li>
+      <li>El <b>RNC de la S.R.L.</b> cuando esté, para verificar la empresa y subir el límite de mensajes.</li>
+      <li>Nombre, correo y teléfono de los <b>2 organizadores</b> y los repartidores que usarán el sistema.</li>
+      <li>Confirmar si los celulares del courier permiten abrir páginas web.</li>
+    </ul>
+  </div>
+  <div class="lista nuestra">
+    <h3>De nuestra parte</h3>
+    <ul>
+      <li><b>El optimizador de ruta</b>, que es el corazón de la idea: ordena las paradas con los horarios y ubicaciones que responden los clientes, y se recalcula solo.</li>
+      <li>Activar los <b>recordatorios automáticos</b> y la lista de llamadas.</li>
+      <li>Conectar <b>WhatsApp real</b> y que Meta apruebe los 6 mensajes.</li>
+      <li>Publicar la app en internet y dejarla lista para el celular.</li>
+      <li>Probarla en celulares reales, incluyendo cuando se pierde la señal.</li>
+    </ul>
+  </div>
+</div>
+
+<div class="cierre">
+  <h3>Siguiente paso: una prueba de 2 semanas</h3>
+  <p>Arrancamos con un grupo de paquetes reales y medimos: cuántos clientes responden y en cuánto tiempo, cuántas entregas salen al primer intento y a qué hora se cierra el día, comparado con cómo se trabaja hoy. Con esos números se ajustan los tiempos de los recordatorios y se decide con datos.</p>
+</div>
+
+<p class="pie">Courier Local · Resumen para revisión · Las cifras de costos son estimados y se confirman con las tarifas reales de Meta.</p>
+
+</body>
+</html>
