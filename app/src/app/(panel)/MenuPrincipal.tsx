@@ -4,6 +4,8 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 const ENLACES = [
+  { href: "/", texto: "Resumen" },
+  { href: "/repartidores", texto: "Repartidores" },
   { href: "/recibir", texto: "Recibir paquetes" },
   { href: "/paquetes", texto: "Paquetes" },
   { href: "/retiros", texto: "Retiros" },
@@ -24,7 +26,8 @@ export function MenuPrincipal({ simulado, esDueno, excepcionesPendientes }: { si
   return (
     <nav aria-label="Principal" className="deslizable flex gap-1">
       {enlaces.map((enlace) => {
-        const activo = ruta.startsWith(enlace.href);
+        // "/" (Resumen) solo está activo en la raíz; si no, todas las pantallas lo marcarían
+        const activo = enlace.href === "/" ? ruta === "/" : ruta.startsWith(enlace.href);
         return (
           <Link
             key={enlace.href}
