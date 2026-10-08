@@ -2,7 +2,8 @@
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import { elegirRepartidor } from "@/lib/asignacion";
+import { aplicarCoberturas, elegirRepartidor } from "@/lib/asignacion";
+import { diaDeRD } from "@/lib/periodoPago";
 import { esOficina, obtenerUsuarioActual } from "@/lib/sesion";
 import { createClient } from "@/lib/supabase/server";
 import { formatearTelefono, normalizarTelefonoRD } from "@/lib/telefono";
@@ -97,7 +98,8 @@ export async function registrarPaquete(
   }
 
   // Asignación automática: dueño del sector (o el de menos carga si es rotativo)
-  const [{ data: rutas }, { data: admin }, { data: pendientes }] = await Promise.all([
+  const hoy = diaDeRD(new Date());
+  const [{ data: rutas }, { data: admin }, { data: pendientes }, { data: coberturas }] = await Promise.all([
     datos.sectorId
       ? supabase
           .from("repartidor_sectores")
@@ -108,6 +110,8 @@ export async function registrarPaquete(
       : Promise.resolve({ data: [] }),
     supabase.from("repartidores").select("id").eq("rol", "administrador").eq("activo", true).limit(1),
     supabase.from("paquetes").select("repartidor_asignado_id").in("estado", ESTADOS_PENDIENTES).not("repartidor_asignado_id", "is", null),
+    // Ausencias que se están cubriendo hoy: el paquete del que falta va a quien lo cubre
+    supabase.from("coberturas").select("ausente_id, cubre_id").lte("desde", hoy).gte("hasta", hoy).is("terminada_en", null),
   ]);
 
   const cargaActual: Record<string, number> = {};
@@ -118,7 +122,10 @@ export async function registrarPaquete(
   const repartidorId = elegirRepartidor({
     voluminoso: datos.voluminoso,
     administradorId: admin?.[0]?.id ?? null,
-    duenosDelSector: (rutas ?? []).map((r: { repartidor_id: string }) => r.repartidor_id),
+    duenosDelSector: aplicarCoberturas(
+      (rutas ?? []).map((r: { repartidor_id: string }) => r.repartidor_id),
+      (coberturas ?? []).map((c: { ausente_id: string; cubre_id: string }) => ({ ausenteId: c.ausente_id, cubreId: c.cubre_id }))
+    ),
     cargaActual,
   });
 

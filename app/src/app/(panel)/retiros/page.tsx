@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { TEXTO_HORARIO_OFICINA } from "@/lib/oficina";
 import { nivelPlazo } from "@/lib/plazo";
 import { formatearTelefono } from "@/lib/telefono";
 import { createClient } from "@/lib/supabase/server";
@@ -50,7 +51,7 @@ export default async function PaginaRetiros({ searchParams }: { searchParams: Pr
     <div className="space-y-5">
       <div>
         <h1 className="text-3xl font-semibold">Retiros en oficina</h1>
-        <p className="text-sm text-tinta-2">Clientes que prefirieron pasar a buscar su paquete. La oficina cierra a las 4:00 pm.</p>
+        <p className="text-sm text-tinta-2">Clientes que prefirieron pasar a buscar su paquete. La oficina atiende {TEXTO_HORARIO_OFICINA}.</p>
       </div>
 
       {sinSubir.length > 0 && (

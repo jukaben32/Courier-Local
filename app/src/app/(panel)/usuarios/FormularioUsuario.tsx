@@ -8,6 +8,7 @@ const ESTADO_INICIAL: EstadoUsuario = {};
 export function FormularioUsuario({ repartidoresLibres }: { repartidoresLibres: { id: string; nombre: string }[] }) {
   const [estado, accion, pendiente] = useActionState(crearUsuario, ESTADO_INICIAL);
   const [rol, setRol] = useState("organizador");
+  const [ficha, setFicha] = useState("");
   const [copiado, setCopiado] = useState(false);
 
   const campo = "w-full rounded-lg border border-linea bg-tarjeta px-3 py-2.5";
@@ -43,12 +44,20 @@ export function FormularioUsuario({ repartidoresLibres }: { repartidoresLibres: 
         {rol === "repartidor" && (
           <div>
             <label htmlFor="repartidorId" className="mb-1 block text-sm font-medium">Repartidor</label>
-            <select id="repartidorId" name="repartidorId" required className={campo}>
+            <select id="repartidorId" name="repartidorId" required value={ficha} onChange={(e) => setFicha(e.target.value)} className={campo}>
               <option value="">Elegir…</option>
+              <option value="nuevo">➕ Repartidor nuevo (aún no está en el sistema)</option>
               {repartidoresLibres.map((r) => <option key={r.id} value={r.id}>{r.nombre}</option>)}
             </select>
-            {repartidoresLibres.length === 0 && <p className="mt-1 text-xs text-tinta-2">Todos los repartidores ya tienen usuario.</p>}
           </div>
+        )}
+        {rol === "repartidor" && ficha === "nuevo" && (
+          <label className="flex items-start gap-3 rounded-lg border border-linea bg-fondo/60 p-3 text-sm sm:col-span-2">
+            <input type="checkbox" name="esSuplente" className="mt-1 size-4" />
+            <span>
+              <b>Es el repartidor suplente (de emergencia).</b> No tiene sectores fijos: entra cuando otro falla o se está entrenando por si alguien sale. Si no la marcas, queda como un repartidor normal sin rutas asignadas.
+            </span>
+          </label>
         )}
         <div className="sm:col-span-2">
           {estado.error && <p role="alert" className="mb-2 text-sm font-medium text-rojo">{estado.error}</p>}

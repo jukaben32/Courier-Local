@@ -171,3 +171,28 @@ describe("calcularMetricas", () => {
     expect(m.porDia[0].dia).toBe("2026-09-27");
   });
 });
+
+describe("retiros en oficina", () => {
+  it("mide qué parte de las entregas fue retiro en oficina (cada una es una entrega a domicilio que el courier se ahorra)", () => {
+    const m = calcularMetricas(
+      {
+        paquetes: [],
+        entregas: [
+          entrega({ paqueteId: "1" }), // domicilio
+          entrega({ paqueteId: "2" }), // domicilio
+          entrega({ paqueteId: "3", tipo: "retiro_oficina", repartidor: null }),
+          entrega({ paqueteId: "4", tipo: "retiro_oficina", repartidor: null }),
+          entrega({ paqueteId: "5", resultado: "intento_fallido" }), // no es una entrega: no cuenta
+        ],
+        mensajes: [],
+      },
+      AHORA
+    );
+    expect(m.retiros).toEqual({ retiros: 2, domicilio: 2, porcentaje: 50 });
+  });
+
+  it("sin entregas no inventa un porcentaje", () => {
+    const m = calcularMetricas({ paquetes: [], entregas: [], mensajes: [] }, AHORA);
+    expect(m.retiros).toEqual({ retiros: 0, domicilio: 0, porcentaje: null });
+  });
+});

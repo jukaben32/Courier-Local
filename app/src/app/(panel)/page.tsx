@@ -135,6 +135,14 @@ export default async function PaginaResumen() {
         <Dato titulo="Mensajes enviados" valor={String(m.whatsapp.mensajes)} nota={`${m.whatsapp.fallidos} fallidos`} />
       </div>
 
+      <Seccion titulo="Retiros en la oficina" ayuda="Clientes que pasaron a buscar su paquete. Cada retiro es una entrega a domicilio que el courier se ahorra.">
+        <div className="grid gap-3 sm:grid-cols-3">
+          <Dato titulo="Retiros" valor={String(m.retiros.retiros)} />
+          <Dato titulo="Del total" valor={pct(m.retiros.porcentaje)} nota="de las entregas" />
+          <Dato titulo="A domicilio" valor={String(m.retiros.domicilio)} />
+        </div>
+      </Seccion>
+
       <Seccion titulo="Plazo de lo que falta por entregar" ayuda="El courier da 3 días desde que llega cada paquete.">
         <ul className="grid grid-cols-2 gap-2 sm:grid-cols-4">
           {PLAZOS.map((p) => (
@@ -176,9 +184,9 @@ export default async function PaginaResumen() {
           <ul className="space-y-3">
             {m.porSector.map((s) => (
               <li key={s.sector} className="text-sm">
-                <div className="flex justify-between gap-3">
+                <div className="flex flex-wrap justify-between gap-x-3">
                   <span className="font-medium">{s.sector}</span>
-                  <span className="shrink-0 tabular-nums text-tinta-2">{s.recibidos} en total · {s.entregados} entregados · {s.pendientes} por entregar</span>
+                  <span className="tabular-nums text-tinta-2">{s.recibidos} en total · {s.entregados} entregados · {s.pendientes} por entregar</span>
                 </div>
                 <div className="mt-1 h-2 overflow-hidden rounded bg-fondo">
                   <div className="h-full rounded bg-acento" style={{ width: `${(s.recibidos / maxSector) * 100}%` }} />

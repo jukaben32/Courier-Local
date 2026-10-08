@@ -5,6 +5,8 @@
 // responde, se abre una ventana de 24 horas donde ya se puede escribir con mensajes libres
 // (botones de franjas, pedir ubicación, confirmaciones) sin plantilla.
 
+import { TEXTO_HORARIO_OFICINA } from "../oficina";
+
 export const ACCION_COORDINAR = "coordinar";
 export const ACCION_RETIRO = "retiro";
 export const ACCION_OTRA_PERSONA = "otra_persona";
@@ -136,7 +138,7 @@ export const TEXTOS = {
     "Comparte la ubicación exacta donde estarás recibiendo el paquete 📍. " +
     "Aunque ya tengamos tu dirección, a veces estás en otro lugar y así llegamos directo.",
   sinPaquetes: "No tengo paquetes tuyos pendientes por coordinar. Si crees que es un error, llama a la oficina.",
-  retiro: "Perfecto. Te esperamos en la oficina hoy hasta las 4:00 pm. Lleva tu cédula.",
+  retiro: `Perfecto. Te esperamos en la oficina, abierta ${TEXTO_HORARIO_OFICINA}. Lleva tu cédula.`,
   otraPersona:
     "Sin problema. Quien reciba el paquete debe llevar la cédula de la persona a nombre de quien viene " +
     "(la física, o una foto de ella que tú le envíes). Sin esa cédula no podemos entregarlo.",

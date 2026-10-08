@@ -27,6 +27,10 @@ interface Props {
   periodoAnterior: PeriodoPago;
   /** Solo el dueño ve el dinero; el resto de la oficina ve las cantidades. */
   verDinero: boolean;
+  /** A quién está cubriendo hoy (si es suplente o cubre una ausencia). */
+  cubriendoA?: string[];
+  /** Quién lo está cubriendo hoy (si él es el que falta). */
+  cubiertoPor?: string;
 }
 
 function Cifra({ titulo, cuenta, nota, verDinero }: { titulo: string; cuenta: Cuenta; nota?: string; verDinero: boolean }) {
@@ -53,7 +57,7 @@ function textoBono(bono: FilaBono, parametros: ParametrosBono | null, verDinero:
   return { texto: `Para el bono necesita ${Number(parametros.umbral_bono_mensual)} puntos`, bueno: false };
 }
 
-export function TarjetaRepartidor({ fila, bono, parametros, periodoActual, periodoAnterior, verDinero }: Props) {
+export function TarjetaRepartidor({ fila, bono, parametros, periodoActual, periodoAnterior, verDinero, cubriendoA = [], cubiertoPor }: Props) {
   const puntaje = bono ? Math.round(Number(bono.puntaje)) : null;
   const estadoBono = bono ? textoBono(bono, parametros, verDinero) : null;
 
@@ -61,8 +65,14 @@ export function TarjetaRepartidor({ fila, bono, parametros, periodoActual, perio
     <article className="space-y-4 rounded-xl border border-linea bg-tarjeta p-5">
       <header className="flex flex-wrap items-center justify-between gap-2">
         <h3 className="text-xl font-semibold">{fila.nombre}</h3>
-        {fila.rol === "administrador" && <span className="rounded-full bg-tinta/10 px-2.5 py-1 text-xs font-semibold">Administrador (minivan)</span>}
+        <div className="flex flex-wrap gap-1.5">
+          {fila.rol === "administrador" && <span className="rounded-full bg-tinta/10 px-2.5 py-1 text-xs font-semibold">Administrador (minivan)</span>}
+          {fila.esSuplente && <span className="rounded-full bg-acento/20 px-2.5 py-1 text-xs font-semibold text-acento-oscuro">Suplente</span>}
+          {!fila.activo && <span className="rounded-full bg-rojo/15 px-2.5 py-1 text-xs font-semibold text-rojo">Dado de baja</span>}
+        </div>
       </header>
+      {cubriendoA.length > 0 && <p className="-mt-2 rounded-lg bg-acento/10 px-3 py-2 text-sm font-medium">Hoy cubre a {cubriendoA.join(" y ")}.</p>}
+      {cubiertoPor && <p className="-mt-2 rounded-lg bg-ambar/15 px-3 py-2 text-sm font-medium">Hoy no trabaja: lo cubre {cubiertoPor}.</p>}
 
       <div className="grid grid-cols-3 gap-3">
         <Cifra titulo="Hoy" cuenta={fila.hoy} verDinero={verDinero} />

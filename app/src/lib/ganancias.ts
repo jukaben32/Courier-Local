@@ -10,6 +10,10 @@ export interface RepartidorBase {
   id: string;
   nombre: string;
   rol: string;
+  /** false = ya no trabaja (se sigue mostrando mientras tenga dinero por cobrar). */
+  activo?: boolean;
+  /** Repartidor de emergencia, sin sectores fijos. */
+  esSuplente?: boolean;
 }
 
 /** Una entrega a domicilio ya hecha (la que se paga). */
@@ -42,6 +46,8 @@ export interface FilaRepartidor {
   id: string;
   nombre: string;
   rol: string;
+  activo: boolean;
+  esSuplente: boolean;
   hoy: Cuenta;
   periodoActual: Cuenta;
   periodoAnterior: Cuenta;
@@ -93,6 +99,8 @@ export function resumenPagos(entrada: EntradaPagos, ahora: Date = new Date()): R
         id: r.id,
         nombre: r.nombre,
         rol: r.rol,
+        activo: r.activo ?? true,
+        esSuplente: r.esSuplente ?? false,
         hoy: cuenta(suyas.filter((e) => diaRD(e.creadoEn) === hoy)),
         periodoActual: cuenta(suyas.filter((e) => dentro(e, actual))),
         periodoAnterior: cuenta(suyas.filter((e) => dentro(e, anterior))),

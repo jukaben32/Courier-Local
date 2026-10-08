@@ -22,6 +22,7 @@ export function AccionesUsuario({ usuarioId, activo, esMismoUsuario }: { usuario
         )}
       </div>
       {resultado.error && <span role="alert" className="text-xs font-medium text-rojo">{resultado.error}</span>}
+      {resultado.aviso && <span role="status" className="max-w-xs text-right text-xs font-medium text-[#8a6200]">{resultado.aviso}</span>}
       {resultado.clave && (
         <span role="status" className="text-xs">
           Contraseña nueva (solo se ve ahora): <code className="rounded bg-fondo px-1.5 py-0.5 font-mono text-sm">{resultado.clave}</code>

@@ -59,6 +59,8 @@ export interface Metricas {
     motivos: { motivo: string; cantidad: number }[];
   };
   whatsapp: { avisados: number; confirmaron: number; tasaRespuesta: number | null; mensajes: number; fallidos: number };
+  /** Cuántas entregas fueron retiro en la oficina (el courier se ahorra pagar una entrega a domicilio). */
+  retiros: { retiros: number; domicilio: number; porcentaje: number | null };
   porRepartidor: { nombre: string; entregas: number; fallidos: number; primerIntento: number | null; sinSubir: number }[];
   porSector: { sector: string; recibidos: number; entregados: number; pendientes: number }[];
   porDia: { dia: string; recibidos: number; entregados: number }[];
@@ -122,6 +124,13 @@ function calcularWhatsapp(paquetes: PaqueteM[], mensajes: MensajeM[]): Metricas[
   };
 }
 
+function calcularRetiros(entregas: EntregaM[]): Metricas["retiros"] {
+  const entregadas = entregas.filter((e) => e.resultado === "entregado");
+  const retiros = entregadas.filter((e) => e.tipo === "retiro_oficina").length;
+  const domicilio = entregadas.length - retiros;
+  return { retiros, domicilio, porcentaje: porcentaje(retiros, entregadas.length) };
+}
+
 function calcularPorRepartidor(paquetes: PaqueteM[], entregas: EntregaM[]): Metricas["porRepartidor"] {
   const paquetePorId = new Map(paquetes.map((p) => [p.id, p]));
   const nombres = [...new Set(entregas.flatMap((e) => (e.repartidor ? [e.repartidor] : [])))];
@@ -176,6 +185,7 @@ export function calcularMetricas(entrada: EntradaMetricas, ahora: Date = new Dat
     cartera: calcularCartera(paquetes, ahora),
     rendimiento: calcularRendimiento(paquetes, entregas),
     whatsapp: calcularWhatsapp(paquetes, mensajes),
+    retiros: calcularRetiros(entregas),
     porRepartidor: calcularPorRepartidor(paquetes, entregas),
     porSector: calcularPorSector(paquetes),
     porDia: calcularPorDia(paquetes, entregas, ahora),
