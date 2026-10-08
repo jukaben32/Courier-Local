@@ -141,9 +141,9 @@ export function EquilibrioReparto() {
       </div>
 
       <div className="flex flex-wrap items-end gap-3">
-        <label className="text-sm font-medium">
+        <label className="min-w-0 max-w-full text-sm font-medium">
           ¿Qué tan parejo?
-          <select value={margen} onChange={(e) => setMargen(Number(e.target.value))} className="mt-1 block rounded-lg border border-linea bg-tarjeta px-3 py-2.5">
+          <select value={margen} onChange={(e) => setMargen(Number(e.target.value))} className="mt-1 block w-full max-w-full rounded-lg border border-linea bg-tarjeta px-3 py-2.5">
             {MARGENES.map((m) => <option key={m.valor} value={m.valor}>{m.texto}</option>)}
           </select>
         </label>
