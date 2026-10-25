@@ -4,27 +4,28 @@ import { revalidatePath } from "next/cache";
 import { esOficina, obtenerUsuarioActual } from "@/lib/sesion";
 import { createClient } from "@/lib/supabase/server";
 import { enviarPorWhatsApp } from "@/lib/whatsapp/cliente";
-import { cuerpoPlantilla, type MensajeSaliente } from "@/lib/whatsapp/envio";
+import { agruparAvisos, historialDeAvisos, mensajesDeAvisos, type PaqueteNuevo } from "@/lib/whatsapp/avisos";
 import { franjasDisponibles, horaLocalRD, type Franja } from "@/lib/whatsapp/mensajes";
-import { PLANTILLAS, parametrosAvisoLlegada } from "@/lib/whatsapp/plantillas";
+import { usaOpenWA } from "@/lib/whatsapp/proveedor";
+import { describirTanda, enviarTanda } from "@/lib/whatsapp/tanda";
 
 export interface EstadoAvisos {
   mensaje?: string;
   error?: string;
 }
 
-interface PaqueteNuevo {
-  id: string;
-  numero_guia: string;
-  nombre_etiqueta: string;
-  destinatario_id: string;
-  destinatarios: { telefono: string } | null;
-}
-
 /** Envía un solo aviso por persona (con todos sus paquetes recibidos) y los pasa a "avisado". */
 export async function enviarAvisos(): Promise<EstadoAvisos> {
   const usuario = await obtenerUsuarioActual();
   if (!usuario || !esOficina(usuario)) return { error: "No tienes permiso para enviar avisos." };
+
+  // Con OpenWA los avisos no salen de golpe: este botón manda la primera tanda y el programador
+  // (npm run programador) sigue enviando poco a poco, con pausas, dentro del horario permitido.
+  if (usaOpenWA()) {
+    const tanda = await enviarTanda();
+    revalidatePath("/paquetes");
+    return { mensaje: `${describirTanda(tanda)} Deja corriendo el programador para que siga enviando.` };
+  }
 
   const supabase = await createClient();
   const [{ data: franjas }, { data: paquetes }] = await Promise.all([
@@ -43,44 +44,12 @@ export async function enviarAvisos(): Promise<EstadoAvisos> {
     return { error: "Ya no quedan franjas de entrega hoy. Envía los avisos mañana a primera hora." };
   }
 
-  const porPersona = new Map<string, PaqueteNuevo[]>();
-  for (const p of nuevos) {
-    porPersona.set(p.destinatario_id, [...(porPersona.get(p.destinatario_id) ?? []), p]);
-  }
-  const grupos = [...porPersona.values()].filter((g) => g[0].destinatarios?.telefono);
-  const sinTelefono = porPersona.size - grupos.length;
-
-  const mensajes: MensajeSaliente[] = grupos.map((grupo) => ({
-    telefono: grupo[0].destinatarios!.telefono,
-    externalId: grupo[0].destinatario_id,
-    cuerpo: cuerpoPlantilla(
-      PLANTILLAS.avisoLlegada.nombre,
-      parametrosAvisoLlegada(grupo[0].nombre_etiqueta, grupo.map((p) => p.numero_guia))
-    ),
-  }));
-
+  const { grupos, sinTelefono } = agruparAvisos(nuevos);
+  const mensajes = mensajesDeAvisos(grupos);
   const resultados = await enviarPorWhatsApp(mensajes);
 
-  const filasHistorial: Record<string, unknown>[] = [];
-  const idsAvisados: string[] = [];
-  grupos.forEach((grupo, i) => {
-    const r = resultados[i];
-    for (const p of grupo) {
-      filasHistorial.push({
-        paquete_id: p.id,
-        telefono: mensajes[i].telefono,
-        direccion: "saliente",
-        tipo: "aviso",
-        plantilla: PLANTILLAS.avisoLlegada.nombre,
-        estado: r.ok ? "enviado" : "fallido",
-        proveedor_id: r.id ?? null,
-        error: r.error ?? null,
-      });
-      if (r.ok) idsAvisados.push(p.id);
-    }
-  });
-
-  if (filasHistorial.length > 0) await supabase.from("mensajes_whatsapp").insert(filasHistorial);
+  const { filas, idsAvisados } = historialDeAvisos(grupos, mensajes, resultados);
+  if (filas.length > 0) await supabase.from("mensajes_whatsapp").insert(filas);
   if (idsAvisados.length > 0) await supabase.from("paquetes").update({ estado: "notificado" }).in("id", idsAvisados);
 
   revalidatePath("/paquetes");

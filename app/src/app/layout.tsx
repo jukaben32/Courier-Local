@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Bricolage_Grotesque, DM_Sans } from "next/font/google";
 import "./globals.css";
+import { SugerirInstalar } from "@/components/SugerirInstalar";
 
 const cuerpo = DM_Sans({ variable: "--font-cuerpo", subsets: ["latin"] });
 const titulo = Bricolage_Grotesque({ variable: "--font-titulo", subsets: ["latin"] });
@@ -21,7 +22,11 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html lang="es" className={`${cuerpo.variable} ${titulo.variable} h-full antialiased`}>
-      <body className="min-h-full">{children}</body>
+      <body className="min-h-full">
+        {children}
+        {/* Aviso para instalar la app en el celular */}
+        <SugerirInstalar />
+      </body>
     </html>
   );
 }

@@ -55,6 +55,8 @@ export function codigoDeFranja(opcionId: string): string | null {
 export type Entrante =
   | { telefono: string; tipo: "accion"; accion: string }
   | { telefono: string; tipo: "franja"; codigo: string }
+  // Solo versión OpenWA: el cliente elige una hora exacta (inicio del bloque, 24 h)
+  | { telefono: string; tipo: "hora"; hora: number }
   | { telefono: string; tipo: "ubicacion"; lat: number; lng: number }
   | { telefono: string; tipo: "texto"; texto: string };
 

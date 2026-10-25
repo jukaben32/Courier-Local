@@ -7,6 +7,8 @@ import {
 } from "@/lib/recordatorios";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { enviarPorWhatsApp } from "./cliente";
+import { telefonosQueDijeronNo } from "./optout";
+import { ritmoDesdeEntorno, usaOpenWA } from "./proveedor";
 import { cuerpoPlantilla, type MensajeSaliente } from "./envio";
 import { PLANTILLAS, primerNombre, textoGuias } from "./plantillas";
 
@@ -89,7 +91,13 @@ export async function enviarRecordatorios(ahora: Date = new Date()): Promise<Res
     };
   });
 
-  const decisiones = decidirRecordatorios(candidatos, ahora, config);
+  // Quien respondió "NO" no vuelve a recibir mensajes
+  const dijeronNo = await telefonosQueDijeronNo(candidatos.map((c) => c.telefono));
+  const disponibles = candidatos.filter((c) => !dijeronNo.has(c.telefono));
+
+  // Con OpenWA los recordatorios salen de pocos en pocos (el resto en la siguiente pasada de 15 min)
+  const todas = decidirRecordatorios(disponibles, ahora, config);
+  const decisiones = usaOpenWA() ? todas.slice(0, ritmoDesdeEntorno().recordatoriosPorLlamada) : todas;
   if (decisiones.length === 0) return { esperando: personas.size, enviados: 0, fallidos: 0 };
 
   const mensajes: MensajeSaliente[] = decisiones.map(({ candidato, plantilla }) => ({

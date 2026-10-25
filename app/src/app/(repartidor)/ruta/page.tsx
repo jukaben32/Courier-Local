@@ -1,3 +1,4 @@
+import { etiquetaBloque, horaDeColumna } from "@/lib/whatsapp/horas";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { PrepararSinSenal } from "../PrepararSinSenal";
@@ -8,7 +9,9 @@ export const dynamic = "force-dynamic";
 const ESTADOS_POR_ENTREGAR = ["recibido", "notificado", "confirmado", "en_ruta", "intento_fallido"];
 const ORDEN_FRANJA: Record<string, number> = { AM: 1, MID: 2, PM: 3 };
 const ETIQUETA_FRANJA: Record<string, string> = { AM: "9 am a 12 pm", MID: "12 pm a 3 pm", PM: "3 pm a 6 pm" };
-const SIN_HORARIO = 9;
+// Las horas exactas (versión OpenWA) van después de las franjas fijas y se ordenan entre sí
+const SIN_HORARIO = 999;
+const BASE_HORA_EXACTA = 100;
 
 interface ParadaDb {
   id: string;
@@ -17,6 +20,7 @@ interface ParadaDb {
   estado: string;
   voluminoso: boolean;
   ventana_horaria: string | null;
+  hora_preferida: string | null;
   ubicacion_entrega_lat: number | null;
   ubicacion_entrega_lng: number | null;
   destinatarios: { telefono: string; direccion_texto: string | null } | null;
@@ -52,7 +56,7 @@ export default async function PaginaRuta() {
     supabase
       .from("paquetes")
       .select(
-        "id, numero_guia, nombre_etiqueta, estado, voluminoso, ventana_horaria, ubicacion_entrega_lat, ubicacion_entrega_lng, destinatarios(telefono, direccion_texto), sectores(nombre)"
+        "id, numero_guia, nombre_etiqueta, estado, voluminoso, ventana_horaria, hora_preferida, ubicacion_entrega_lat, ubicacion_entrega_lng, destinatarios(telefono, direccion_texto), sectores(nombre)"
       )
       .in("estado", ESTADOS_POR_ENTREGAR),
     supabase
@@ -90,14 +94,15 @@ export default async function PaginaRuta() {
   const paradasRuta: ParadaRuta[] = confirmadas.map((p) => {
     const propio = p.ubicacion_entrega_lat !== null && p.ubicacion_entrega_lng !== null;
     const centro = propio ? null : centroDelSector(p.sectores?.nombre);
+    const horaExacta = horaDeColumna(p.hora_preferida);
     return {
       id: p.id,
       nombre: p.nombre_etiqueta,
       direccion: p.destinatarios?.direccion_texto ?? null,
       sector: p.sectores?.nombre ?? null,
       guia: p.numero_guia,
-      franja: ORDEN_FRANJA[p.ventana_horaria ?? ""] ?? SIN_HORARIO,
-      etiquetaFranja: ETIQUETA_FRANJA[p.ventana_horaria ?? ""] ?? "Sin horario",
+      franja: horaExacta !== null ? BASE_HORA_EXACTA + horaExacta : (ORDEN_FRANJA[p.ventana_horaria ?? ""] ?? SIN_HORARIO),
+      etiquetaFranja: horaExacta !== null ? etiquetaBloque(horaExacta) : (ETIQUETA_FRANJA[p.ventana_horaria ?? ""] ?? "Sin horario"),
       lat: propio ? p.ubicacion_entrega_lat : (centro?.lat ?? null),
       lng: propio ? p.ubicacion_entrega_lng : (centro?.lng ?? null),
       ubicacionAproximada: !propio && centro !== null,
