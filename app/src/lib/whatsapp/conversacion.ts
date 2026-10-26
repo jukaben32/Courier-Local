@@ -72,6 +72,7 @@ async function responder(admin: Admin, telefono: string, paqueteId: string | nul
     estado: resultado.ok ? "enviado" : "fallido",
     contenido: r.resumen,
     proveedor_id: resultado.id ?? null,
+    sesion: resultado.sesion ?? null,
     error: resultado.error ?? null,
   });
   return resultado.ok;

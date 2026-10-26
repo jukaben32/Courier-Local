@@ -3,22 +3,34 @@ import { diaLocal } from "@/lib/plazo";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { agruparAvisos, historialDeAvisos, mensajesDeAvisos, type PaqueteNuevo } from "./avisos";
 import { enviarPorWhatsApp } from "./cliente";
-import { horaEstimadaFin, planificarTanda } from "./goteo";
+import { horaEstimadaFin, planificarTanda, type PlanTanda } from "./goteo";
 import { horaLocalRD } from "./mensajes";
 import { estadoSesionOpenWA } from "./openwa";
 import { telefonosQueDijeronNo } from "./optout";
-import { configOpenWA, ritmoDesdeEntorno } from "./proveedor";
+import { configsOpenWA, ritmoDesdeEntorno } from "./proveedor";
+import { repartirCola, type PersonaEnCola } from "./reparto";
 
 /** Un mismo paquete de avisos fallando 2 veces en el día deja de reintentarse (número inválido, etc.). */
 const FALLOS_MAXIMOS_POR_PERSONA = 2;
 
 interface MensajeDelDia {
   telefono: string;
+  sesion: string | null;
   estado: string;
   creado_en: string;
 }
 
+export interface ResumenCuenta {
+  sesion: string;
+  enviados: number;
+  fallidos: number;
+  /** Por qué esta cuenta no envió nada en esta tanda, si es el caso. */
+  pausa?: string;
+}
+
 export interface ResumenTanda {
+  /** Detalle por cuenta de WhatsApp (solo cuando hay más de una). */
+  cuentas?: ResumenCuenta[];
   enviados: number;
   fallidos: number;
   enCola: number;
@@ -79,8 +91,18 @@ export async function enviarTanda(ahora: Date = new Date()): Promise<ResumenTand
 async function ejecutarTanda(ahora: Date): Promise<ResumenTanda> {
   const admin = createAdminClient();
   const ritmo = ritmoDesdeEntorno();
-  const config = configOpenWA();
-  const sesion = config ? await estadoSesionOpenWA(config) : { lista: false, motivo: "Faltan las variables OPENWA_* en .env.local." };
+  const configs = configsOpenWA();
+  if (configs.length === 0) {
+    return {
+      enviados: 0,
+      fallidos: 0,
+      enCola: 0,
+      enviadosHoy: 0,
+      terminaHacia: null,
+      pausa: "Faltan las variables OPENWA_* en .env.local.",
+    };
+  }
+  const sesiones = await Promise.all(configs.map((c) => estadoSesionOpenWA(c)));
 
   const hace24h = new Date(ahora.getTime() - 24 * 60 * 60 * 1000).toISOString();
   const [{ data: paquetes }, { data: delDia }] = await Promise.all([
@@ -91,51 +113,107 @@ async function ejecutarTanda(ahora: Date): Promise<ResumenTanda> {
       .order("fecha_recibido"),
     admin
       .from("mensajes_whatsapp")
-      .select("telefono, estado, creado_en")
+      .select("telefono, sesion, estado, creado_en")
       .eq("direccion", "saliente")
       .in("tipo", ["aviso", "recordatorio"])
       .gte("creado_en", hace24h),
   ]);
 
   const deHoy = ((delDia ?? []) as MensajeDelDia[]).filter((m) => diaLocal(new Date(m.creado_en)) === diaLocal(ahora));
+  const primera = configs[0].sessionId;
+  // Los mensajes de antes de usar varias cuentas no traen sesión: se cuentan en la primera
+  const diaDeCuenta = (sesion: string) =>
+    analizarDia(deHoy.filter((m) => (m.sesion ?? primera) === sesion), FALLOS_MAXIMOS_POR_PERSONA);
   const dia = analizarDia(deHoy, FALLOS_MAXIMOS_POR_PERSONA);
 
   const { grupos: todos } = agruparAvisos((paquetes ?? []) as unknown as PaqueteNuevo[]);
-  const dijeronNo = await telefonosQueDijeronNo(todos.map((g) => g[0].destinatarios!.telefono));
+  const telefonosCola = todos.map((g) => g[0].destinatarios!.telefono);
+  const dijeronNo = await telefonosQueDijeronNo(telefonosCola);
   const cola = todos.filter((g) => {
     const tel = g[0].destinatarios!.telefono;
     return !dia.rendidas.has(tel) && !dijeronNo.has(tel);
   });
 
-  const plan = planificarTanda({
-    ahora,
-    ritmo,
-    enviadosHoy: dia.enviadosHoy,
-    enCola: cola.length,
-    fallosSeguidos: dia.fallosSeguidos,
-    sesion,
-    azar: Math.random,
+  // Cuenta que ya le escribió antes a cada persona (para que siga hablando con la misma)
+  const preferidas = new Map<string, string>();
+  if (cola.length > 0) {
+    const { data: menus } = await admin
+      .from("menus_whatsapp")
+      .select("telefono, sesion")
+      .in("telefono", cola.map((g) => g[0].destinatarios!.telefono));
+    for (const m of (menus ?? []) as { telefono: string; sesion: string | null }[]) {
+      if (m.sesion) preferidas.set(m.telefono, m.sesion);
+    }
+  }
+
+  // Plan de cada cuenta: cuántas personas puede avisar ahora, o por qué no
+  const planes: { sesion: string; plan: PlanTanda; enviadosHoy: number; caida: boolean }[] = configs.map((c, k) => {
+    const d = diaDeCuenta(c.sessionId);
+    const plan = planificarTanda({
+      ahora,
+      ritmo,
+      enviadosHoy: d.enviadosHoy,
+      enCola: cola.length,
+      fallosSeguidos: d.fallosSeguidos,
+      sesion: sesiones[k],
+      azar: Math.random,
+    });
+    // "Caída": no sirve ahora (desconectada, restringida o frenada por fallos); no cuenta el horario ni el tope
+    const caida = !sesiones[k].lista || d.fallosSeguidos >= ritmo.fallosSeguidosParaFrenar;
+    return { sesion: c.sessionId, plan, enviadosHoy: d.enviadosHoy, caida };
   });
 
+  const reparto = repartirCola(
+    cola.map((g): PersonaEnCola & { grupo: typeof g } => ({
+      telefono: g[0].destinatarios!.telefono,
+      preferida: preferidas.get(g[0].destinatarios!.telefono),
+      grupo: g,
+    })),
+    planes.map((p) => ({ sesion: p.sesion, cupo: p.plan.enviar, enviadosHoy: p.enviadosHoy, caida: p.caida }))
+  );
+
   const base = { enCola: cola.length, enviadosHoy: dia.enviadosHoy, terminaHacia: horaEstimadaFin(ahora, cola.length, ritmo) };
-  if (plan.enviar === 0) return { ...base, enviados: 0, fallidos: 0, pausa: plan.pausa };
+  const hayEnvio = [...reparto.values()].some((v) => v.length > 0);
+  if (!hayEnvio) {
+    const motivos = [...new Set(planes.map((p) => p.plan.pausa).filter((m): m is string => !!m))];
+    return {
+      ...base,
+      enviados: 0,
+      fallidos: 0,
+      pausa: motivos.length > 0 ? motivos.join(" ") : "No hay avisos en cola.",
+      ...(configs.length > 1 ? { cuentas: planes.map((p) => ({ sesion: p.sesion, enviados: 0, fallidos: 0, pausa: p.plan.pausa })) } : {}),
+    };
+  }
 
-  const grupos = cola.slice(0, plan.enviar);
-  const mensajes = mensajesDeAvisos(grupos);
-  const resultados = await enviarPorWhatsApp(mensajes);
+  // Cada cuenta envía a su ritmo, al mismo tiempo que las demás (cada una con sus propias pausas)
+  const porCuenta = await Promise.all(
+    planes.map(async (p): Promise<ResumenCuenta> => {
+      const personas = (reparto.get(p.sesion) ?? []) as (PersonaEnCola & { grupo: PaqueteNuevo[] })[];
+      if (personas.length === 0) return { sesion: p.sesion, enviados: 0, fallidos: 0, pausa: p.plan.pausa };
 
-  const { filas, idsAvisados } = historialDeAvisos(grupos, mensajes, resultados);
-  if (filas.length > 0) await admin.from("mensajes_whatsapp").insert(filas);
-  if (idsAvisados.length > 0) await admin.from("paquetes").update({ estado: "notificado" }).in("id", idsAvisados);
+      const grupos = personas.map((x) => x.grupo);
+      const mensajes = mensajesDeAvisos(grupos);
+      const resultados = await enviarPorWhatsApp(mensajes, { sesionId: p.sesion });
 
-  const enviados = resultados.filter((r) => r.ok).length;
+      const { filas, idsAvisados } = historialDeAvisos(grupos, mensajes, resultados);
+      if (filas.length > 0) await admin.from("mensajes_whatsapp").insert(filas);
+      if (idsAvisados.length > 0) await admin.from("paquetes").update({ estado: "notificado" }).in("id", idsAvisados);
+
+      const enviados = resultados.filter((r) => r.ok).length;
+      return { sesion: p.sesion, enviados, fallidos: resultados.length - enviados };
+    })
+  );
+
+  const enviados = porCuenta.reduce((n, c) => n + c.enviados, 0);
+  const fallidos = porCuenta.reduce((n, c) => n + c.fallidos, 0);
   const restantes = cola.length - enviados;
   return {
     enviados,
-    fallidos: resultados.length - enviados,
+    fallidos,
     enCola: restantes,
     enviadosHoy: dia.enviadosHoy + enviados,
     terminaHacia: horaEstimadaFin(new Date(), restantes, ritmo),
+    ...(configs.length > 1 ? { cuentas: porCuenta } : {}),
   };
 }
 
@@ -146,5 +224,6 @@ export function describirTanda(r: ResumenTanda): string {
   const fin = r.terminaHacia ? ` · terminará ≈ ${r.terminaHacia}` : "";
   const ahora = horaLocalRD();
   const fallos = r.fallidos > 0 ? ` (${r.fallidos} fallaron y se reintentan)` : "";
-  return `Tanda de las ${ahora}: se avisó a ${r.enviados} ${r.enviados === 1 ? "persona" : "personas"}${fallos}. ${cola}${fin}.`;
+  const detalle = r.cuentas ? ` Por cuenta: ${r.cuentas.map((c, k) => `#${k + 1} ${c.enviados}`).join(" · ")}.` : "";
+  return `Tanda de las ${ahora}: se avisó a ${r.enviados} ${r.enviados === 1 ? "persona" : "personas"}${fallos}.${detalle} ${cola}${fin}.`;
 }

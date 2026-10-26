@@ -3,7 +3,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { procesarEntrante } from "@/lib/whatsapp/conversacion";
 import { enviarPorWhatsApp } from "@/lib/whatsapp/cliente";
 import { cuerpoTexto } from "@/lib/whatsapp/envio";
-import { configHorasDesdeEntorno } from "@/lib/whatsapp/proveedor";
+import { configHorasDesdeEntorno, sesionesOpenWA } from "@/lib/whatsapp/proveedor";
 import { interpretarRespuestaTexto, type OpcionMenu } from "@/lib/whatsapp/menu";
 import {
   firmaOpenWAValida,
@@ -44,8 +44,14 @@ async function procesarEvento(admin: Admin, evento: EventoOpenWA): Promise<void>
 
   // Solo se atiende a quien nosotros le escribimos antes: el número lo usa también la oficina
   // para hablar con gente, y esas conversaciones no deben tocarse ni guardarse.
-  const { data: menu } = await admin.from("menus_whatsapp").select("opciones").eq("telefono", evento.telefono).maybeSingle();
+  const { data: menu } = await admin.from("menus_whatsapp").select("opciones, sesion").eq("telefono", evento.telefono).maybeSingle();
   if (!menu) return;
+
+  // Las respuestas se tratan igual lleguen por la cuenta que lleguen. Solo se anota por cuál escribió
+  // el cliente, para contestarle desde esa misma cuenta.
+  if (evento.sesionId && evento.sesionId !== menu.sesion && sesionesOpenWA().includes(evento.sesionId)) {
+    await admin.from("menus_whatsapp").update({ sesion: evento.sesionId }).eq("telefono", evento.telefono);
+  }
 
   if (evento.ubicacion) {
     await procesarEntrante({ telefono: evento.telefono, tipo: "ubicacion", ...evento.ubicacion }, { soloLoEntendido: true });
@@ -78,6 +84,7 @@ async function procesarEvento(admin: Admin, evento: EventoOpenWA): Promise<void>
       estado: envio.ok ? "enviado" : "fallido",
       contenido: RESPUESTA_NO,
       proveedor_id: envio.id ?? null,
+      sesion: envio.sesion ?? null,
       error: envio.error ?? null,
     });
     return;

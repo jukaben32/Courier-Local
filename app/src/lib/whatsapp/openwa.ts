@@ -118,6 +118,8 @@ export type EventoOpenWA =
       telefono: string;
       texto: string | null;
       ubicacion: { lat: number; lng: number } | null;
+      /** Cuenta (sesión de OpenWA) que recibió el mensaje. */
+      sesionId?: string;
     }
   | { eventoId: string; clase: "estado"; mensajeIds: string[]; estado: EstadoMensajeOpenWA };
 
@@ -130,6 +132,7 @@ const ESTADOS: Record<string, EstadoMensajeOpenWA> = {
 
 interface CuerpoWebhook {
   event?: string;
+  sessionId?: string;
   idempotencyKey?: string;
   deliveryId?: string;
   data?: {
@@ -172,7 +175,7 @@ export function interpretarEventoOpenWA(cuerpo: unknown): EventoOpenWA | null {
         : null;
     const texto = c.data.type === "chat" || c.data.type === "text" ? (c.data.body ?? null) : null;
     if (!ubicacion && !texto) return null;
-    return { eventoId, clase: "entrante", telefono, texto, ubicacion };
+    return { eventoId, clase: "entrante", telefono, texto, ubicacion, ...(c.sessionId ? { sesionId: c.sessionId } : {}) };
   }
 
   if (c.event === "message.ack" || c.event === "message.failed") {

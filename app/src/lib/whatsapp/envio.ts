@@ -22,6 +22,8 @@ export interface ResultadoEnvio {
   /** Id del mensaje en YCloud: sirve para cruzar los avisos de entregado/leído/fallido. */
   id?: string;
   error?: string;
+  /** Cuenta de WhatsApp (sesión de OpenWA) que mandó el mensaje. */
+  sesion?: string;
 }
 
 export interface ConfigEnvio {
