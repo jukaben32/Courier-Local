@@ -5,7 +5,7 @@
 // responde, se abre una ventana de 24 horas donde ya se puede escribir con mensajes libres
 // (botones de franjas, pedir ubicación, confirmaciones) sin plantilla.
 
-import { TEXTO_HORARIO_OFICINA } from "../oficina";
+import { DIRECCION_OFICINA, ENLACE_MAPA_OFICINA, TEXTO_HORARIO_OFICINA } from "../oficina";
 
 export const ACCION_COORDINAR = "coordinar";
 export const ACCION_RETIRO = "retiro";
@@ -138,12 +138,12 @@ export const TEXTOS = {
     "Comparte la ubicación exacta donde estarás recibiendo el paquete 📍. " +
     "Aunque ya tengamos tu dirección, a veces estás en otro lugar y así llegamos directo. " +
     "Si la casa es difícil de encontrar, mándanos también una foto o video de la fachada 📸.",
-  fotoRecibida: "¡Gracias por la foto! Se la pasamos al repartidor para que llegue sin perderse.",
-  fotoRecibidaSinUbicacion:
-    "¡Gracias por la foto! Se la pasamos al repartidor. Para llegar directo, compártenos también tu ubicación 📍 " +
-    "(toca el clip 📎 > Ubicación > Enviar tu ubicación actual).",
   sinPaquetes: "No tengo paquetes tuyos pendientes por coordinar. Si crees que es un error, llama a la oficina.",
   retiro: `Perfecto. Te esperamos en la oficina, abierta ${TEXTO_HORARIO_OFICINA}. Lleva tu cédula.`,
+  // Versión OpenWA: un solo mensaje con todo lo que necesita saber quien pasa por la oficina
+  retiroOpenWA:
+    `Perfecto 👍 Te esperamos en la oficina: ${DIRECCION_OFICINA}, ${TEXTO_HORARIO_OFICINA}.\n📍 ${ENLACE_MAPA_OFICINA}\n` +
+    "Para dejarlo listo, envíanos por aquí una foto de tu cédula (la de la persona a nombre de quien viene el paquete).",
   otraPersona:
     "Sin problema. Quien reciba el paquete debe llevar la cédula de la persona a nombre de quien viene " +
     "(la física, o una foto de ella que tú le envíes). Sin esa cédula no podemos entregarlo.",
@@ -152,6 +152,22 @@ export const TEXTOS = {
     "Si necesitas hablar con una persona, llama a la oficina.",
 } as const;
 
+/** Respuesta a "otra persona lo recibe" (OpenWA): una sola vez, y pide solo lo que todavía falta. */
+export function textoOtraPersona(faltaUbicacion: boolean, faltaHora: boolean): string {
+  const base =
+    "Sin problema 👍 Quien reciba debe tener la cédula de la persona a nombre de quien viene el paquete " +
+    "(la física, o una captura o foto de ella). Sin esa cédula no podemos entregarlo.";
+  if (faltaUbicacion && faltaHora) return `${base} Respóndenos además con tu ubicación 📍 y la hora que te viene bien.`;
+  if (faltaUbicacion) return `${base} Solo nos falta tu ubicación 📍.`;
+  if (faltaHora) return `${base} Solo nos falta la hora que te viene bien.`;
+  return base;
+}
+
+/** Cuando no se entiende la hora: una sola aclaración, con un ejemplo, y se acabó. */
+export function textoAclararHora(horario: string): string {
+  return `No te entendí 🙏 Escríbenos la hora así: *entre 2 y 4 de la tarde*. Entregamos de ${horario}.`;
+}
+
 /**
  * Único mensaje de cierre (versión OpenWA): se manda cuando ya tenemos hora y ubicación.
  * Lleva el contacto del repartidor para que arreglen cualquier detalle directamente.
@@ -159,9 +175,10 @@ export const TEXTOS = {
 export function textoConfirmacionFinal(
   horario: string | null,
   nombreEtiqueta: string,
-  repartidor: { nombre: string; telefono: string | null } | null
+  repartidor: { nombre: string; telefono: string | null } | null,
+  paraManana = false
 ): string {
-  const cuando = horario ? ` en el horario de ${horario}` : "";
+  const cuando = horario ? ` ${paraManana ? "mañana " : ""}en el horario de ${horario}` : paraManana ? " mañana" : "";
   const nombre = repartidor?.nombre.trim().split(/\s+/)[0];
   const quien = nombre
     ? `Te lo lleva ${nombre}${repartidor?.telefono ? ` (${repartidor.telefono})` : ""}`

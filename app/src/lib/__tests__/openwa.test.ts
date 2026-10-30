@@ -19,7 +19,7 @@ import {
   firmaOpenWAValida,
   interpretarEventoOpenWA,
 } from "../whatsapp/openwa";
-import { textoConfirmacionFinal } from "../whatsapp/plantillas";
+import { TEXTOS, textoAclararHora, textoConfirmacionFinal, textoOtraPersona } from "../whatsapp/plantillas";
 import { ritmoDesdeEntorno } from "../whatsapp/proveedor";
 import { aTextoPlano, cuerpoMenuHoras } from "../whatsapp/textoPlano";
 import { textoDePlantilla } from "../whatsapp/textosOpenWA";
@@ -118,8 +118,12 @@ describe("interpretarRespuestaTexto", () => {
     expect(interpretarRespuestaTexto("9", MENU)).toBeNull();
   });
 
-  it("una hora escrita gana sobre el menú", () => {
-    expect(interpretarRespuestaTexto("a las 4:30 pm", MENU)).toEqual({ tipo: "entrante", entrante: { tipo: "hora", hora: 16 } });
+  it("una hora escrita llega como rango de una hora", () => {
+    const ahora = new Date("2026-10-30T12:00:00Z"); // 8:00 am en RD
+    expect(interpretarRespuestaTexto("a las 4:30 pm", MENU, undefined, ahora)).toEqual({
+      tipo: "entrante",
+      entrante: { tipo: "rango", desde: 16, hasta: 17, dia: "hoy" },
+    });
   });
 
   it("entiende palabras clave", () => {
@@ -148,13 +152,12 @@ describe("textos de OpenWA", () => {
     expect(m.texto).toContain("María");
     expect(m.texto).toContain("guía CR2026-48213");
     expect(m.texto).toContain("📍 Tu ubicación");
-    expect(m.texto).toContain("🕐 La hora");
-    expect(m.texto).toContain("1 - Llévenmelo entre 1 y 2 pm");
-    expect(m.texto).toContain("6 - Llévenmelo entre 6 y 7 pm");
-    expect(m.texto).not.toContain("oficina");
+    expect(m.texto).toContain("Entre qué hora y qué hora");
+    expect(m.texto).toContain("*entre 2 y 4 de la tarde*");
+    expect(m.texto).not.toMatch(/^\d+ - /m);
     expect(m.texto).toContain("foto o video");
     expect(m.texto).toContain("responde NO");
-    expect(m.opciones).toEqual([13, 14, 15, 16, 17, 18].map((hora, i) => ({ numero: i + 1, tipo: "hora", hora })));
+    expect(m.opciones).toEqual([]);
   });
 
   it("el texto y las opciones del aviso siempre coinciden en cantidad", () => {
@@ -168,10 +171,10 @@ describe("textos de OpenWA", () => {
     expect(new Set(textos).size).toBe(3);
   });
 
-  it("si ya no hay horas hoy, no pide nada y avisa que mañana se coordina", () => {
-    const m = textoDePlantilla("aviso_paquete_llegada", params, { ahora: new Date("2026-10-26T22:45:00Z") })!;
-    expect(m.opciones).toEqual([]);
-    expect(m.texto).toContain("mañana a primera hora");
+  it("el aviso es igual a cualquier hora del día (si pide una hora que ya pasó, se pasa a mañana)", () => {
+    const tarde = textoDePlantilla("aviso_paquete_llegada", params, { ahora: new Date("2026-10-26T22:45:00Z"), azar: () => 0 })!;
+    const temprano = textoDePlantilla("aviso_paquete_llegada", params, { ahora: MEDIODIA_Y_MEDIA, azar: () => 0 })!;
+    expect(tarde.texto).toBe(temprano.texto);
   });
 
   it("recordatorio y último día ofrecen retiro y horas; en camino y entregado no piden nada", () => {
@@ -206,6 +209,32 @@ describe("mensaje de cierre", () => {
     const sinTelefono = textoConfirmacionFinal("2 pm a 3 pm", "Ana", { nombre: "Luis Gómez", telefono: null });
     expect(sinTelefono).toContain("Te lo lleva Luis en el horario");
     expect(sinTelefono).not.toContain("escríbele");
+  });
+});
+
+describe("respuestas de retiro, otra persona y aclaración", () => {
+  it("retiro: dirección, horario, enlace al mapa y pedido de la cédula en un solo mensaje", () => {
+    expect(TEXTOS.retiroOpenWA).toContain("Mauricio Báez #186");
+    expect(TEXTOS.retiroOpenWA).toContain("de 8:00 am a 6:00 pm");
+    expect(TEXTOS.retiroOpenWA).toContain("https://www.google.com/maps");
+    expect(TEXTOS.retiroOpenWA).toContain("foto de tu cédula");
+  });
+
+  it("otra persona: exige la cédula del dueño y pide solo lo que falta", () => {
+    expect(textoOtraPersona(true, true)).toContain("ubicación 📍 y la hora");
+    expect(textoOtraPersona(true, false)).toContain("Solo nos falta tu ubicación");
+    expect(textoOtraPersona(false, true)).toContain("Solo nos falta la hora");
+    const completo = textoOtraPersona(false, false);
+    expect(completo).toContain("captura o foto");
+    expect(completo).not.toContain("falta");
+  });
+
+  it("aclaración: un ejemplo y el horario de entrega", () => {
+    expect(textoAclararHora("9 am a 7 pm")).toBe("No te entendí 🙏 Escríbenos la hora así: *entre 2 y 4 de la tarde*. Entregamos de 9 am a 7 pm.");
+  });
+
+  it("el cierre dice 'mañana' cuando la entrega es para mañana", () => {
+    expect(textoConfirmacionFinal("9 am a 11 am", "Ana", null, true)).toContain("mañana en el horario de 9 am a 11 am");
   });
 });
 

@@ -47,7 +47,7 @@ export default async function PaginaEnVivo({ searchParams }: { searchParams: Pro
   const { data: paquetesBD } = telefonos.length
     ? await supabase
         .from("paquetes")
-        .select("numero_guia, nombre_etiqueta, estado, ventana_horaria, hora_preferida, ubicacion_entrega_lat, sectores(nombre), destinatarios!inner(telefono)")
+        .select("numero_guia, nombre_etiqueta, estado, ventana_horaria, hora_preferida, hora_hasta, dia_entrega, ubicacion_entrega_lat, sectores(nombre), destinatarios!inner(telefono)")
         .in("destinatarios.telefono", telefonos)
         .order("fecha_recibido", { ascending: false })
     : { data: [] };
@@ -58,6 +58,8 @@ export default async function PaginaEnVivo({ searchParams }: { searchParams: Pro
     estado: string;
     ventana_horaria: string | null;
     hora_preferida: string | null;
+    hora_hasta: string | null;
+    dia_entrega: string | null;
     ubicacion_entrega_lat: number | null;
     sectores: { nombre: string } | null;
     destinatarios: { telefono: string };
@@ -69,6 +71,8 @@ export default async function PaginaEnVivo({ searchParams }: { searchParams: Pro
     estado: p.estado,
     ventana_horaria: p.ventana_horaria,
     hora_preferida: p.hora_preferida,
+    hora_hasta: p.hora_hasta,
+    dia_entrega: p.dia_entrega,
     tiene_ubicacion: p.ubicacion_entrega_lat !== null,
     sector: p.sectores?.nombre ?? null,
   }));

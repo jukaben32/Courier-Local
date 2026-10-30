@@ -53,7 +53,12 @@ function numero12(hora: number): string {
 
 /** "4 pm a 5 pm", para mostrar al cliente y al repartidor. */
 export function etiquetaBloque(hora: number): string {
-  return `${numero12(hora)} ${sufijo(hora)} a ${numero12(hora + 1)} ${sufijo(hora + 1)}`;
+  return etiquetaRango(hora, hora + 1);
+}
+
+/** "2 pm a 4 pm", para mostrar al cliente y al repartidor. */
+export function etiquetaRango(desde: number, hasta: number): string {
+  return `${numero12(desde)} ${sufijo(desde)} a ${numero12(hasta)} ${sufijo(hasta)}`;
 }
 
 /** "entre 1 y 2 pm"; si el bloque cruza mediodía: "entre 11 am y 12 pm". */

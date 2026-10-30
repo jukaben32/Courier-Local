@@ -52,10 +52,6 @@ export function menuSoloHoras(introduccion: string, ctx: Pick<Contexto, "ahora" 
 
 function avisoLlegada(p: string[], ctx: Contexto): MensajeConMenu {
   const [nombre, guias] = p;
-  const horas = lineasHoras(ctx);
-  // Solo horas: el aviso pide DOS datos (ubicación y hora) para armar la ruta. Quien quiera pasar por la
-  // oficina o recibir otra persona lo escribe y se entiende igual (ver interpretarRespuestaTexto).
-  const menu = construirMenu(horas);
   const { remitente } = ctx;
 
   const variantes = [
@@ -65,19 +61,17 @@ function avisoLlegada(p: string[], ctx: Contexto): MensajeConMenu {
   ];
   const cabecera = variantes[Math.min(variantes.length - 1, Math.floor(ctx.azar() * variantes.length))];
 
-  const pedido =
-    horas.length > 0
-      ? [
-          "Para llevártelo, respóndenos:",
-          "📍 Tu ubicación (toca el clip 📎 > Ubicación > Enviar tu ubicación actual)",
-          "🕐 La hora, solo con el número:",
-          menu.lineas,
-          PIE_HORA,
-          "Si tu casa es difícil de encontrar, mándanos también una foto o video.",
-        ]
-      : ["Por hoy ya no hacemos entregas; mañana a primera hora te escribimos para coordinar."];
-  const texto = [cabecera, ...pedido, `Guarda este número para tus próximos avisos. ${PIE_SALIDA}`].join("\n");
-  return { texto, opciones: menu.opciones };
+  // Sin menú numerado: mucha gente se confunde con los números. La hora se escribe ("entre 2 y 4"),
+  // y quien quiera pasar por la oficina o que reciba otra persona simplemente lo dice.
+  const texto = [
+    cabecera,
+    "Para llevártelo, respóndenos:",
+    "📍 Tu ubicación (toca el clip 📎 > Ubicación > Enviar tu ubicación actual)",
+    "🕐 Entre qué hora y qué hora te viene bien recibirlo. Por ejemplo: *entre 2 y 4 de la tarde*",
+    "Si tu casa es difícil de encontrar, mándanos también una foto o video.",
+    `Guarda este número para tus próximos avisos. ${PIE_SALIDA}`,
+  ].join("\n");
+  return { texto, opciones: [] };
 }
 
 function recordatorio(p: string[], ctx: Contexto): MensajeConMenu {

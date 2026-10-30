@@ -1,6 +1,8 @@
 // Pantalla "En vivo": junta los mensajes de WhatsApp del día por cliente y dice en qué va cada uno.
 // Función pura (sin base de datos) para poder probarla.
 
+import { diaDeRD } from "./periodoPago";
+
 export interface MensajeDelDia {
   id: string;
   telefono: string;
@@ -20,6 +22,9 @@ export interface PaqueteDelCliente {
   estado: string;
   ventana_horaria: string | null;
   hora_preferida: string | null;
+  hora_hasta: string | null;
+  /** "YYYY-MM-DD" si el cliente pidió otro día; null = hoy. */
+  dia_entrega: string | null;
   tiene_ubicacion: boolean;
   sector: string | null;
 }
@@ -54,6 +59,11 @@ export function esArchivoVisible(m: MensajeDelDia): boolean {
   return m.direccion === "entrante" && (m.contenido === "[foto]" || m.contenido === "[video]") && !!m.proveedor_id?.includes("|");
 }
 
+/** "14:00:00" y "16:00:00" -> "2:00 pm a 4:00 pm" */
+export function rangoLegible(desde: string, hasta: string | null): string {
+  return hasta ? `${horaLegible(desde)} a ${horaLegible(hasta)}` : horaLegible(desde);
+}
+
 /** "13:00:00" -> "1:00 pm" */
 export function horaLegible(hora: string): string {
   const [h, m] = hora.split(":").map(Number);
@@ -66,6 +76,7 @@ export function resumirConversaciones(
   franjas: Record<string, string>,
   ahora: Date
 ): FilaEnVivo[] {
+  const diaHoy = diaDeRD(ahora);
   const porTelefono = new Map<string, MensajeDelDia[]>();
   for (const m of [...mensajes].sort((a, b) => a.creado_en.localeCompare(b.creado_en))) {
     porTelefono.set(m.telefono, [...(porTelefono.get(m.telefono) ?? []), m]);
@@ -105,7 +116,7 @@ export function resumirConversaciones(
 
     const conHorario = deEl.find((p) => p.hora_preferida || p.ventana_horaria);
     const eligio = conHorario?.hora_preferida
-      ? horaLegible(conHorario.hora_preferida)
+      ? `${conHorario.dia_entrega && conHorario.dia_entrega > diaHoy ? "Mañana " : ""}${rangoLegible(conHorario.hora_preferida, conHorario.hora_hasta)}`
       : conHorario?.ventana_horaria
         ? (franjas[conHorario.ventana_horaria] ?? conHorario.ventana_horaria)
         : null;

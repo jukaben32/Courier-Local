@@ -1,5 +1,6 @@
 import "server-only";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { diaDeRD } from "@/lib/periodoPago";
 import { formatearTelefono, normalizarTelefonoRD } from "@/lib/telefono";
 import { enviarPorWhatsApp } from "./cliente";
 import { cuerpoBotones, cuerpoPedirUbicacion, cuerpoTexto } from "./envio";
@@ -7,6 +8,7 @@ import {
   bloquesDisponibles,
   columnaDeHora,
   etiquetaBloque,
+  etiquetaRango,
   franjaDeHora,
   horaDeColumna,
 } from "./horas";
@@ -26,6 +28,7 @@ import {
   ACCION_RETIRO,
   TEXTOS,
   textoConfirmacionFinal,
+  textoOtraPersona,
   textoUbicacionRecibida,
 } from "./plantillas";
 
@@ -132,7 +135,7 @@ async function pedirUbicacion(admin: Admin, telefono: string, paqueteId: string 
 async function confirmarCoordinacion(admin: Admin, telefono: string, paqueteIds: string[]): Promise<void> {
   const { data } = await admin
     .from("paquetes")
-    .select("id, nombre_etiqueta, ventana_horaria, hora_preferida, repartidores!paquetes_repartidor_asignado_id_fkey(nombre, telefono)")
+    .select("id, nombre_etiqueta, ventana_horaria, hora_preferida, hora_hasta, dia_entrega, repartidores!paquetes_repartidor_asignado_id_fkey(nombre, telefono)")
     .in("id", paqueteIds)
     .eq("estado", "confirmado")
     .order("fecha_recibido")
@@ -143,6 +146,8 @@ async function confirmarCoordinacion(admin: Admin, telefono: string, paqueteIds:
         nombre_etiqueta: string;
         ventana_horaria: string | null;
         hora_preferida: string | null;
+        hora_hasta: string | null;
+        dia_entrega: string | null;
         repartidores: { nombre: string; telefono: string | null } | null;
       }
     | undefined;
@@ -151,7 +156,8 @@ async function confirmarCoordinacion(admin: Admin, telefono: string, paqueteIds:
   const { data: franjas } = await admin.from("franjas").select("codigo, hora_inicio, hora_fin");
   const franja = ((franjas ?? []) as Franja[]).find((f) => f.codigo === paquete.ventana_horaria);
   const hora = horaDeColumna(paquete.hora_preferida);
-  const horario = hora !== null ? etiquetaBloque(hora) : franja ? tituloFranja(franja) : null;
+  const horario = hora !== null ? etiquetaRango(hora, horaDeColumna(paquete.hora_hasta) ?? hora + 1) : franja ? tituloFranja(franja) : null;
+  const paraManana = paquete.dia_entrega !== null && paquete.dia_entrega > diaDeRD(new Date());
 
   const telefonoRepartidor = paquete.repartidores?.telefono ?? null;
   const normalizado = telefonoRepartidor ? normalizarTelefonoRD(telefonoRepartidor) : null;
@@ -161,7 +167,7 @@ async function confirmarCoordinacion(admin: Admin, telefono: string, paqueteIds:
 
   await responder(admin, telefono, paquete.id, {
     tipo: "respuesta",
-    ...texto(textoConfirmacionFinal(horario, paquete.nombre_etiqueta, repartidor)),
+    ...texto(textoConfirmacionFinal(horario, paquete.nombre_etiqueta, repartidor, paraManana)),
   });
 }
 
@@ -174,6 +180,10 @@ export async function procesarEntrante(
   opciones: { soloLoEntendido?: boolean; /** Lo que escribió el cliente tal cual ("2", "a la 1"). */ textoOriginal?: string } = {}
 ): Promise<void> {
   const admin = createAdminClient();
+  // En OpenWA, una hora elegida de un menú anterior equivale a un rango de una hora
+  if (usaOpenWA() && entrante.tipo === "hora") {
+    entrante = { telefono: entrante.telefono, tipo: "rango", desde: entrante.hora, hasta: entrante.hora + 1, dia: "hoy" };
+  }
   const { telefono } = entrante;
 
   const abiertos = await paquetesDelCliente(admin, telefono, ESTADOS_CON_RUTA);
@@ -279,6 +289,25 @@ export async function procesarEntrante(
     return;
   }
 
+  if (entrante.tipo === "rango") {
+    // Ya quedó coordinado (hora y ubicación): cualquier cambio lo arregla con el repartidor, el bot no insiste
+    if (abiertos.some((p) => p.estado === "confirmado" && p.ubicacion_entrega_lat !== null)) return;
+
+    await admin
+      .from("paquetes")
+      .update({
+        estado: "confirmado",
+        ventana_horaria: franjaDeHora(entrante.desde),
+        hora_preferida: columnaDeHora(entrante.desde),
+        hora_hasta: columnaDeHora(entrante.hasta),
+        dia_entrega: entrante.dia === "manana" ? diaDeRD(new Date(Date.now() + 24 * 60 * 60 * 1000)) : null,
+        hora_confirmacion: new Date().toISOString(),
+      })
+      .in("id", objetivo);
+    if (abiertos.some((p) => p.ubicacion_entrega_lat !== null)) await confirmarCoordinacion(admin, telefono, objetivo);
+    return;
+  }
+
   if (entrante.tipo === "accion") {
     if (entrante.accion === ACCION_COORDINAR) {
       await pedirFranjas(admin, telefono, primero, TEXTOS.pedirFranja);
@@ -287,10 +316,15 @@ export async function procesarEntrante(
         .from("paquetes")
         .update({ estado: "retiro_oficina" })
         .in("id", objetivo);
-      await responder(admin, telefono, primero, { tipo: "respuesta", ...texto(TEXTOS.retiro) });
+      await responder(admin, telefono, primero, { tipo: "respuesta", ...texto(usaOpenWA() ? TEXTOS.retiroOpenWA : TEXTOS.retiro) });
     } else if (entrante.accion === ACCION_OTRA_PERSONA) {
-      // OpenWA: no se contesta; el mensaje de cierre ya recuerda llevar la cédula del destinatario
-      if (usaOpenWA()) return;
+      if (usaOpenWA()) {
+        // Un solo mensaje: la cédula que debe llevar quien reciba y, si aún falta, la ubicación u hora
+        const faltaUbicacion = !abiertos.some((p) => p.ubicacion_entrega_lat !== null);
+        const faltaHora = !abiertos.some((p) => p.estado === "confirmado");
+        await responder(admin, telefono, primero, { tipo: "respuesta", ...texto(textoOtraPersona(faltaUbicacion, faltaHora)) });
+        return;
+      }
       await responder(admin, telefono, primero, { tipo: "respuesta", ...texto(TEXTOS.otraPersona) });
       await pedirFranjas(admin, telefono, primero, TEXTOS.pedirFranja);
     }

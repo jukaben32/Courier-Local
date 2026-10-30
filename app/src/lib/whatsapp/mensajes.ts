@@ -57,6 +57,8 @@ export type Entrante =
   | { telefono: string; tipo: "franja"; codigo: string }
   // Solo versión OpenWA: el cliente elige una hora exacta (inicio del bloque, 24 h)
   | { telefono: string; tipo: "hora"; hora: number }
+  // Versión OpenWA: el cliente escribe entre qué hora y qué hora le viene bien (24 h)
+  | { telefono: string; tipo: "rango"; desde: number; hasta: number; dia: "hoy" | "manana" }
   | { telefono: string; tipo: "ubicacion"; lat: number; lng: number }
   | { telefono: string; tipo: "texto"; texto: string };
 

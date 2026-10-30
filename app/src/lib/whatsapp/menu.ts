@@ -3,7 +3,8 @@
 // se busca qué era la opción 3 de ESE menú. Funciones puras, sin base de datos.
 
 import { ACCION_COORDINAR, ACCION_OTRA_PERSONA, ACCION_RETIRO } from "./plantillas";
-import { CONFIG_HORAS, interpretarHora, type ConfigHoras } from "./horas";
+import { CONFIG_HORAS, type ConfigHoras } from "./horas";
+import { interpretarRango } from "./rango";
 import type { Entrante } from "./mensajes";
 
 export type OpcionMenu =
@@ -51,7 +52,8 @@ const RECHAZOS = /^(no|no espero( nada| ese paquete| paquete)?|no es mio|no es m
 export function interpretarRespuestaTexto(
   texto: string,
   opciones: OpcionMenu[],
-  config: ConfigHoras = CONFIG_HORAS
+  config: ConfigHoras = CONFIG_HORAS,
+  ahora: Date = new Date()
 ): Interpretacion | null {
   const t = limpiar(texto);
   if (!t) return null;
@@ -63,12 +65,16 @@ export function interpretarRespuestaTexto(
     return opcion ? { tipo: "entrante", entrante: deOpcion(opcion) } : null;
   }
 
-  const escrita = interpretarHora(texto, config);
-  if (escrita.hora !== null) return { tipo: "entrante", entrante: { tipo: "hora", hora: escrita.hora } };
-
+  // Pasar por la oficina manda sobre cualquier hora que escriba ("paso a buscarlo a las 3")
   if (/\b(oficina|buscarlo|buscar|recoger|recojo|paso a buscar)\b/.test(t)) {
     return { tipo: "entrante", entrante: { tipo: "accion", accion: ACCION_RETIRO } };
   }
+
+  // La hora escrita ("entre 2 y 4", "por la tarde", "mañana a las 9") manda sobre "otra persona":
+  // si dice las dos cosas, se toma la hora y el mensaje de cierre ya recuerda la cédula.
+  const rango = interpretarRango(texto, ahora, config);
+  if (rango) return { tipo: "entrante", entrante: { tipo: "rango", ...rango } };
+
   if (/\b(otra persona|alguien mas|un familiar|mi (esposa|esposo|hijo|hija|mama|papa|hermano|hermana|vecino))\b/.test(t)) {
     return { tipo: "entrante", entrante: { tipo: "accion", accion: ACCION_OTRA_PERSONA } };
   }

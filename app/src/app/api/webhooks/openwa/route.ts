@@ -4,6 +4,8 @@ import { procesarEntrante } from "@/lib/whatsapp/conversacion";
 import { enviarPorWhatsApp } from "@/lib/whatsapp/cliente";
 import { cuerpoTexto } from "@/lib/whatsapp/envio";
 import { configHorasDesdeEntorno, sesionesOpenWA } from "@/lib/whatsapp/proveedor";
+import { etiquetaRango } from "@/lib/whatsapp/horas";
+import { textoAclararHora } from "@/lib/whatsapp/plantillas";
 import { interpretarRespuestaTexto, type OpcionMenu } from "@/lib/whatsapp/menu";
 import {
   firmaOpenWAValida,
@@ -68,8 +70,8 @@ async function procesarEvento(admin: Admin, evento: EventoOpenWA): Promise<void>
     menu.opciones as OpcionMenu[],
     configHorasDesdeEntorno(process.env)
   );
-  // No se entiende: lo lee una persona en el teléfono (y lo ve en "En vivo")
-  if (!interpretacion) return anotarSinRespuesta(admin, evento.telefono, evento.texto);
+  // No se entiende: se anota (y se ve en "En vivo"). Si aún falta su hora, se le aclara UNA sola vez.
+  if (!interpretacion) return aclararHora(admin, evento.telefono, evento.texto);
 
   if (interpretacion.tipo === "rechazo") {
     await admin.from("mensajes_whatsapp").insert({
@@ -98,7 +100,7 @@ async function procesarEvento(admin: Admin, evento: EventoOpenWA): Promise<void>
   await procesarEntrante({ telefono: evento.telefono, ...interpretacion.entrante }, { soloLoEntendido: true, textoOriginal: evento.texto });
 }
 
-const ESTADOS_ABIERTOS = ["recibido", "notificado", "confirmado", "en_ruta", "intento_fallido"];
+const ESTADOS_ABIERTOS = ["recibido", "notificado", "confirmado", "en_ruta", "intento_fallido", "retiro_oficina"];
 async function recibirFoto(admin: Admin, telefono: string, adjunto: string, archivo: string | null, sesion: string | null): Promise<void> {
   const { data: personas } = await admin.from("destinatarios").select("id").eq("telefono", telefono);
   const { data: abiertos } = await admin
@@ -119,6 +121,44 @@ async function recibirFoto(admin: Admin, telefono: string, adjunto: string, arch
     // "chatId|messageId": con esto la oficina (y luego el repartidor) puede ver el archivo
     proveedor_id: archivo,
     sesion,
+  });
+}
+
+const ACLARACION = "No te entendí";
+
+/** Si la persona aún no dio su hora y nunca se le aclaró, se le explica cómo escribirla (máximo una vez). */
+async function aclararHora(admin: Admin, telefono: string, texto: string): Promise<void> {
+  await anotarSinRespuesta(admin, telefono, texto);
+
+  const { data: personas } = await admin.from("destinatarios").select("id").eq("telefono", telefono);
+  const { count: sinHora } = await admin
+    .from("paquetes")
+    .select("id", { count: "exact", head: true })
+    .in("destinatario_id", (personas ?? []).map((p) => p.id))
+    .in("estado", ["recibido", "notificado"]);
+  if (!sinHora) return;
+
+  const { count: yaAclarado } = await admin
+    .from("mensajes_whatsapp")
+    .select("id", { count: "exact", head: true })
+    .eq("telefono", telefono)
+    .eq("direccion", "saliente")
+    .like("contenido", `${ACLARACION}%`);
+  if (yaAclarado) return;
+
+  const config = configHorasDesdeEntorno(process.env);
+  const aclaracion = textoAclararHora(etiquetaRango(config.desde, config.hasta));
+  const [envio] = await enviarPorWhatsApp([{ telefono, cuerpo: cuerpoTexto(aclaracion) }]);
+  await admin.from("mensajes_whatsapp").insert({
+    paquete_id: null,
+    telefono,
+    direccion: "saliente",
+    tipo: "respuesta",
+    estado: envio.ok ? "enviado" : "fallido",
+    contenido: aclaracion,
+    proveedor_id: envio.id ?? null,
+    sesion: envio.sesion ?? null,
+    error: envio.error ?? null,
   });
 }
 

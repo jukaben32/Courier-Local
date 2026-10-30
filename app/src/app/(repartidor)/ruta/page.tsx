@@ -1,4 +1,5 @@
-import { etiquetaBloque, horaDeColumna } from "@/lib/whatsapp/horas";
+import { diaDeRD } from "@/lib/periodoPago";
+import { etiquetaRango, horaDeColumna } from "@/lib/whatsapp/horas";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { PrepararSinSenal } from "../PrepararSinSenal";
@@ -21,6 +22,8 @@ interface ParadaDb {
   voluminoso: boolean;
   ventana_horaria: string | null;
   hora_preferida: string | null;
+  hora_hasta: string | null;
+  dia_entrega: string | null;
   ubicacion_entrega_lat: number | null;
   ubicacion_entrega_lng: number | null;
   destinatarios: { telefono: string; direccion_texto: string | null } | null;
@@ -56,7 +59,7 @@ export default async function PaginaRuta() {
     supabase
       .from("paquetes")
       .select(
-        "id, numero_guia, nombre_etiqueta, estado, voluminoso, ventana_horaria, hora_preferida, ubicacion_entrega_lat, ubicacion_entrega_lng, destinatarios(telefono, direccion_texto), sectores(nombre)"
+        "id, numero_guia, nombre_etiqueta, estado, voluminoso, ventana_horaria, hora_preferida, hora_hasta, dia_entrega, ubicacion_entrega_lat, ubicacion_entrega_lng, destinatarios(telefono, direccion_texto), sectores(nombre)"
       )
       .in("estado", ESTADOS_POR_ENTREGAR),
     supabase
@@ -74,7 +77,10 @@ export default async function PaginaRuta() {
   ]);
 
   const paradas = (paradasDb ?? []) as unknown as ParadaDb[];
-  const confirmadas = paradas.filter((p) => p.estado === "confirmado");
+  const hoy = diaDeRD(new Date());
+  // Lo que el cliente pidió para mañana no entra en la ruta de hoy
+  const confirmadas = paradas.filter((p) => p.estado === "confirmado" && (!p.dia_entrega || p.dia_entrega <= hoy));
+  const paraManana = paradas.filter((p) => p.estado === "confirmado" && p.dia_entrega && p.dia_entrega > hoy);
   const esperando = paradas.filter((p) => p.estado !== "confirmado");
 
   // Quien confirmó el horario pero no mandó su punto se ubica en el centro de su sector (aproximado)
@@ -102,7 +108,7 @@ export default async function PaginaRuta() {
       sector: p.sectores?.nombre ?? null,
       guia: p.numero_guia,
       franja: horaExacta !== null ? BASE_HORA_EXACTA + horaExacta : (ORDEN_FRANJA[p.ventana_horaria ?? ""] ?? SIN_HORARIO),
-      etiquetaFranja: horaExacta !== null ? etiquetaBloque(horaExacta) : (ETIQUETA_FRANJA[p.ventana_horaria ?? ""] ?? "Sin horario"),
+      etiquetaFranja: horaExacta !== null ? etiquetaRango(horaExacta, horaDeColumna(p.hora_hasta) ?? horaExacta + 1) : (ETIQUETA_FRANJA[p.ventana_horaria ?? ""] ?? "Sin horario"),
       lat: propio ? p.ubicacion_entrega_lat : (centro?.lat ?? null),
       lng: propio ? p.ubicacion_entrega_lng : (centro?.lng ?? null),
       ubicacionAproximada: !propio && centro !== null,
@@ -157,6 +163,26 @@ export default async function PaginaRuta() {
         <h2 className="mb-3 text-lg font-semibold">Tu ruta de hoy</h2>
         <RutaOptimizada paradas={paradasRuta} />
       </section>
+
+      {paraManana.length > 0 && (
+        <section>
+          <h2 className="mb-1 text-lg font-semibold">Para mañana ({paraManana.length})</h2>
+          <p className="mb-3 text-sm text-tinta-2">Estos clientes pidieron recibir mañana; entran a tu ruta de mañana.</p>
+          <ul className="space-y-2">
+            {paraManana.map((p) => {
+              const desde = horaDeColumna(p.hora_preferida);
+              return (
+                <li key={p.id} className="rounded-lg border border-linea bg-tarjeta px-3 py-3 text-sm">
+                  <span className="block truncate font-medium">{p.nombre_etiqueta}</span>
+                  <span className="block truncate text-xs text-tinta-2">
+                    {desde !== null ? etiquetaRango(desde, horaDeColumna(p.hora_hasta) ?? desde + 1) : "Sin horario"} · {p.sectores?.nombre ?? "Sin sector"}
+                  </span>
+                </li>
+              );
+            })}
+          </ul>
+        </section>
+      )}
 
       {esperando.length > 0 && (
         <section>

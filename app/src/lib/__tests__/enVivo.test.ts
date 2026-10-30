@@ -22,6 +22,8 @@ const paquete = (telefono: string, extra: Partial<PaqueteDelCliente> = {}): Paqu
   estado: "notificado",
   ventana_horaria: null,
   hora_preferida: null,
+  hora_hasta: null,
+  dia_entrega: null,
   tiene_ubicacion: false,
   sector: "Miramar",
   ...extra,
@@ -36,11 +38,11 @@ describe("resumirConversaciones", () => {
   it("eligió horario: confirmado, con la hora y su respuesta tal cual", () => {
     const [f] = resumirConversaciones(
       [msj("1", "saliente", 0), msj("1", "entrante", 5, { contenido: "2" }), msj("1", "saliente", 5, { tipo: "ubicacion" })],
-      [paquete("1", { estado: "confirmado", ventana_horaria: "MID", hora_preferida: "13:00:00" })],
+      [paquete("1", { estado: "confirmado", ventana_horaria: "MID", hora_preferida: "13:00:00", hora_hasta: "14:00:00" })],
       FRANJAS,
       AHORA
     );
-    expect(f).toMatchObject({ estado: "confirmado", eligio: "1:00 pm", ultimoDelCliente: { texto: "2" } });
+    expect(f).toMatchObject({ estado: "confirmado", eligio: "1:00 pm a 2:00 pm", ultimoDelCliente: { texto: "2" } });
   });
 
   it("escribió algo que el sistema no contestó: necesita atención, y va primero", () => {
