@@ -136,7 +136,12 @@ export const TEXTOS = {
   sinFranjas: "Hoy ya no quedan horarios de entrega. Mañana a primera hora te escribimos para coordinar. ¡Gracias!",
   pedirUbicacion:
     "Comparte la ubicación exacta donde estarás recibiendo el paquete 📍. " +
-    "Aunque ya tengamos tu dirección, a veces estás en otro lugar y así llegamos directo.",
+    "Aunque ya tengamos tu dirección, a veces estás en otro lugar y así llegamos directo. " +
+    "Si la casa es difícil de encontrar, mándanos también una foto o video de la fachada 📸.",
+  fotoRecibida: "¡Gracias por la foto! Se la pasamos al repartidor para que llegue sin perderse.",
+  fotoRecibidaSinUbicacion:
+    "¡Gracias por la foto! Se la pasamos al repartidor. Para llegar directo, compártenos también tu ubicación 📍 " +
+    "(toca el clip 📎 > Ubicación > Enviar tu ubicación actual).",
   sinPaquetes: "No tengo paquetes tuyos pendientes por coordinar. Si crees que es un error, llama a la oficina.",
   retiro: `Perfecto. Te esperamos en la oficina, abierta ${TEXTO_HORARIO_OFICINA}. Lleva tu cédula.`,
   otraPersona:

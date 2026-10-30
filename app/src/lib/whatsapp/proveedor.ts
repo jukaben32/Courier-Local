@@ -9,9 +9,9 @@ export function usaOpenWA(env: Record<string, string | undefined> = process.env)
 }
 
 /** Máximo de cuentas de WhatsApp (sesiones de OpenWA) que se usan a la vez. */
-export const MAX_CUENTAS = 5;
+export const MAX_CUENTAS = 8;
 
-/** Ids de las sesiones: OPENWA_SESSION_IDS="uno,dos,..." (hasta 5) o, como antes, OPENWA_SESSION_ID. */
+/** Ids de las sesiones: OPENWA_SESSION_IDS="uno,dos,..." (hasta 8) o, como antes, OPENWA_SESSION_ID. */
 export function sesionesOpenWA(env: Record<string, string | undefined> = process.env): string[] {
   const crudo = env.OPENWA_SESSION_IDS?.trim() ? env.OPENWA_SESSION_IDS : (env.OPENWA_SESSION_ID ?? "");
   const ids = crudo.split(",").map((s) => s.trim()).filter(Boolean);

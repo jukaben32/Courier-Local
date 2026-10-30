@@ -22,9 +22,9 @@ describe("cuentas de WhatsApp configuradas", () => {
     expect(sesionesOpenWA({ OPENWA_SESSION_IDS: "x,y", OPENWA_SESSION_ID: "a" })).toEqual(["x", "y"]);
   });
 
-  it("usa como máximo 5 cuentas", () => {
-    const ids = sesionesOpenWA({ OPENWA_SESSION_IDS: "1,2,3,4,5,6,7" });
-    expect(ids).toEqual(["1", "2", "3", "4", "5"]);
+  it("usa como máximo 8 cuentas", () => {
+    const ids = sesionesOpenWA({ OPENWA_SESSION_IDS: "1,2,3,4,5,6,7,8,9,10" });
+    expect(ids).toEqual(["1", "2", "3", "4", "5", "6", "7", "8"]);
     expect(ids).toHaveLength(MAX_CUENTAS);
   });
 
@@ -51,6 +51,24 @@ describe("reparto de la cola entre cuentas", () => {
     const r = repartirCola(cola, [cuenta("a", 2), cuenta("b", 2)]);
     expect(telefonos(r, "a")).toHaveLength(2);
     expect(telefonos(r, "b")).toHaveLength(2);
+  });
+
+  it("en un día completo, 8 cuentas terminan con la misma cantidad de envíos", () => {
+    const sesiones = ["1", "2", "3", "4", "5", "6", "7", "8"];
+    const enviados = new Map(sesiones.map((s) => [s, 0]));
+    let cola = Array.from({ length: 240 }, (_, i) => persona(`${i}`));
+    // Cada tanda una cuenta puede avisar a 1 o 2 personas (al azar), con tope de 30 por día
+    for (let tanda = 0; cola.length > 0 && tanda < 1000; tanda++) {
+      const cuentas = sesiones.map((s, k) =>
+        cuenta(s, Math.min((tanda + k) % 2 === 0 ? 1 : 2, 30 - enviados.get(s)!), { enviadosHoy: enviados.get(s)! })
+      );
+      const r = repartirCola(cola, cuentas);
+      for (const s of sesiones) enviados.set(s, enviados.get(s)! + r.get(s)!.length);
+      const avisados = new Set([...r.values()].flat());
+      cola = cola.filter((p) => !avisados.has(p));
+    }
+    expect(cola).toHaveLength(0);
+    expect([...enviados.values()]).toEqual(sesiones.map(() => 30));
   });
 
   it("respeta el cupo de cada cuenta", () => {

@@ -6,8 +6,10 @@ import { usePathname } from "next/navigation";
 const ENLACES = [
   { href: "/", texto: "Resumen" },
   { href: "/repartidores", texto: "Repartidores" },
+  { href: "/importar", texto: "Importar listado" },
   { href: "/recibir", texto: "Recibir paquetes" },
   { href: "/paquetes", texto: "Paquetes" },
+  { href: "/en-vivo", texto: "En vivo" },
   { href: "/retiros", texto: "Retiros" },
   { href: "/excepciones", texto: "Excepciones" },
   { href: "/cierre", texto: "Cierre del día" },

@@ -118,6 +118,10 @@ export type EventoOpenWA =
       telefono: string;
       texto: string | null;
       ubicacion: { lat: number; lng: number } | null;
+      /** Qué mandó si no es texto ni ubicación ("foto", "nota de voz"...). */
+      adjunto?: string;
+      /** Referencia para descargar el adjunto ("chatId|messageId"), si OpenWA la mandó. */
+      archivo?: string | null;
       /** Cuenta (sesión de OpenWA) que recibió el mensaje. */
       sesionId?: string;
     }
@@ -159,6 +163,25 @@ function telefonoDeEntrante(data: NonNullable<CuerpoWebhook["data"]>): string | 
   return candidato ? normalizarTelefonoRD(candidato) : null;
 }
 
+function archivoDe(data: NonNullable<CuerpoWebhook["data"]>): string | null {
+  const chat = data.chatId ?? data.from;
+  const mensaje = data.id ?? data.messageId;
+  return chat && mensaje ? `${chat}|${mensaje}` : null;
+}
+
+const ADJUNTOS: Record<string, string> = {
+  image: "foto",
+  video: "video",
+  ptt: "nota de voz",
+  audio: "audio",
+  document: "documento",
+  sticker: "sticker",
+  vcard: "contacto",
+  contact: "contacto",
+  // Ubicación que llegó sin coordenadas (ubicación en tiempo real, por ejemplo)
+  location: "ubicación sin coordenadas",
+};
+
 /** Convierte el cuerpo de un webhook de OpenWA en un evento propio; null si no interesa. */
 export function interpretarEventoOpenWA(cuerpo: unknown): EventoOpenWA | null {
   const c = cuerpo as CuerpoWebhook;
@@ -174,8 +197,19 @@ export function interpretarEventoOpenWA(cuerpo: unknown): EventoOpenWA | null {
         ? { lat: latitude, lng: longitude }
         : null;
     const texto = c.data.type === "chat" || c.data.type === "text" ? (c.data.body ?? null) : null;
-    if (!ubicacion && !texto) return null;
-    return { eventoId, clase: "entrante", telefono, texto, ubicacion, ...(c.sessionId ? { sesionId: c.sessionId } : {}) };
+    // Fotos, audios, etc.: el sistema no los entiende, pero se anotan para que la oficina los vea
+    const adjunto = !ubicacion && !texto ? ADJUNTOS[c.data.type ?? ""] : undefined;
+    if (!ubicacion && !texto && !adjunto) return null;
+    return {
+      eventoId,
+      clase: "entrante",
+      telefono,
+      texto,
+      ubicacion,
+      // Con esto se puede descargar después la foto o el video desde OpenWA
+      ...(adjunto ? { adjunto, archivo: archivoDe(c.data) } : {}),
+      ...(c.sessionId ? { sesionId: c.sessionId } : {}),
+    };
   }
 
   if (c.event === "message.ack" || c.event === "message.failed") {

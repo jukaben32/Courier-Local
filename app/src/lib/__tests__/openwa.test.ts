@@ -327,12 +327,23 @@ describe("webhooks de OpenWA", () => {
     expect(e).toMatchObject({ clase: "entrante", ubicacion: { lat: 18.45, lng: -69.3 }, texto: null });
   });
 
-  it("ignora grupos, mensajes propios, números extranjeros, fotos y sin teléfono", () => {
+  it("anota fotos, audios y ubicaciones sin coordenadas como adjuntos", () => {
+    expect(interpretarEventoOpenWA(recibido({ type: "image", chatId: "18295550123@c.us", id: "false_x_ABC" }))).toMatchObject({
+      texto: null,
+      ubicacion: null,
+      adjunto: "foto",
+      archivo: "18295550123@c.us|false_x_ABC",
+    });
+    expect(interpretarEventoOpenWA(recibido({ type: "ptt", chatId: "18295550123@c.us" }))).toMatchObject({ adjunto: "nota de voz" });
+    expect(interpretarEventoOpenWA(recibido({ type: "location", chatId: "18295550123@c.us" }))).toMatchObject({ adjunto: "ubicación sin coordenadas" });
+  });
+
+  it("ignora grupos, mensajes propios, números extranjeros, mensajes borrados y sin teléfono", () => {
     expect(interpretarEventoOpenWA(recibido({ type: "text", body: "x", chatId: "1829@c.us", isGroup: true }))).toBeNull();
     expect(interpretarEventoOpenWA(recibido({ type: "text", body: "x", chatId: "18295550123@c.us", fromMe: true }))).toBeNull();
     expect(interpretarEventoOpenWA(recibido({ type: "text", body: "x", chatId: "18295550123@g.us", kind: "group" }))).toBeNull();
     expect(interpretarEventoOpenWA(recibido({ type: "text", body: "x", chatId: "5215512345678@c.us" }))).toBeNull();
-    expect(interpretarEventoOpenWA(recibido({ type: "image", chatId: "18295550123@c.us" }))).toBeNull();
+    expect(interpretarEventoOpenWA(recibido({ type: "revoked", chatId: "18295550123@c.us" }))).toBeNull();
     expect(interpretarEventoOpenWA(recibido({ type: "text", body: "x", chatId: "99@lid", senderPhone: null }))).toBeNull();
   });
 

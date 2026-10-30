@@ -128,7 +128,7 @@ async function pedirUbicacion(admin: Admin, telefono: string, paqueteId: string 
  */
 export async function procesarEntrante(
   entrante: Entrante,
-  opciones: { soloLoEntendido?: boolean } = {}
+  opciones: { soloLoEntendido?: boolean; /** Lo que escribió el cliente tal cual ("2", "a la 1"). */ textoOriginal?: string } = {}
 ): Promise<void> {
   const admin = createAdminClient();
   const { telefono } = entrante;
@@ -142,7 +142,7 @@ export async function procesarEntrante(
     direccion: "entrante",
     tipo: "respuesta",
     estado: "entregado",
-    contenido: entrante.tipo === "texto" ? entrante.texto : `${entrante.tipo}`,
+    contenido: opciones.textoOriginal ?? (entrante.tipo === "texto" ? entrante.texto : `${entrante.tipo}`),
   });
 
   if (abiertos.length === 0) {

@@ -3,6 +3,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { procesarEntrante } from "@/lib/whatsapp/conversacion";
 import { enviarPorWhatsApp } from "@/lib/whatsapp/cliente";
 import { cuerpoTexto } from "@/lib/whatsapp/envio";
+import { TEXTOS } from "@/lib/whatsapp/plantillas";
 import { configHorasDesdeEntorno, sesionesOpenWA } from "@/lib/whatsapp/proveedor";
 import { interpretarRespuestaTexto, type OpcionMenu } from "@/lib/whatsapp/menu";
 import {
@@ -54,9 +55,13 @@ async function procesarEvento(admin: Admin, evento: EventoOpenWA): Promise<void>
   }
 
   if (evento.ubicacion) {
-    await procesarEntrante({ telefono: evento.telefono, tipo: "ubicacion", ...evento.ubicacion }, { soloLoEntendido: true });
+    await procesarEntrante({ telefono: evento.telefono, tipo: "ubicacion", ...evento.ubicacion }, { soloLoEntendido: true, textoOriginal: "📍 Ubicación" });
     return;
   }
+  // Foto o video de la casa (en muchos sectores no hay numeración clara): se guarda para el repartidor
+  if (evento.adjunto === "foto" || evento.adjunto === "video") return recibirFoto(admin, evento.telefono, evento.adjunto, evento.archivo ?? null, menu.sesion);
+  // Audio, documento, etc.: no hay respuesta automática; queda anotado para que la oficina lo atienda
+  if (evento.adjunto) return anotarSinRespuesta(admin, evento.telefono, `[${evento.adjunto}]`);
   if (!evento.texto) return;
 
   const interpretacion = interpretarRespuestaTexto(
@@ -64,7 +69,8 @@ async function procesarEvento(admin: Admin, evento: EventoOpenWA): Promise<void>
     menu.opciones as OpcionMenu[],
     configHorasDesdeEntorno(process.env)
   );
-  if (!interpretacion) return; // no se entiende: lo lee una persona en el teléfono
+  // No se entiende: lo lee una persona en el teléfono (y lo ve en "En vivo")
+  if (!interpretacion) return anotarSinRespuesta(admin, evento.telefono, evento.texto);
 
   if (interpretacion.tipo === "rechazo") {
     await admin.from("mensajes_whatsapp").insert({
@@ -90,7 +96,71 @@ async function procesarEvento(admin: Admin, evento: EventoOpenWA): Promise<void>
     return;
   }
 
-  await procesarEntrante({ telefono: evento.telefono, ...interpretacion.entrante }, { soloLoEntendido: true });
+  await procesarEntrante({ telefono: evento.telefono, ...interpretacion.entrante }, { soloLoEntendido: true, textoOriginal: evento.texto });
+}
+
+const ESTADOS_ABIERTOS = ["recibido", "notificado", "confirmado", "en_ruta", "intento_fallido"];
+// Si manda varias fotos seguidas, se le agradece una sola vez
+const MINUTOS_SIN_REPETIR_GRACIAS = 15;
+
+async function recibirFoto(admin: Admin, telefono: string, adjunto: string, archivo: string | null, sesion: string | null): Promise<void> {
+  const { data: personas } = await admin.from("destinatarios").select("id").eq("telefono", telefono);
+  const { data: abiertos } = await admin
+    .from("paquetes")
+    .select("id, ubicacion_entrega_lat")
+    .in("destinatario_id", (personas ?? []).map((p) => p.id))
+    .in("estado", ESTADOS_ABIERTOS)
+    .order("fecha_recibido");
+  const paquetes = abiertos ?? [];
+
+  await admin.from("mensajes_whatsapp").insert({
+    paquete_id: paquetes[0]?.id ?? null,
+    telefono,
+    direccion: "entrante",
+    tipo: "respuesta",
+    estado: "entregado",
+    contenido: `[${adjunto}]`,
+    // "chatId|messageId": con esto la oficina (y luego el repartidor) puede ver el archivo
+    proveedor_id: archivo,
+    sesion,
+  });
+  if (paquetes.length === 0) return;
+
+  const haceRato = new Date(Date.now() - MINUTOS_SIN_REPETIR_GRACIAS * 60_000).toISOString();
+  const { count } = await admin
+    .from("mensajes_whatsapp")
+    .select("id", { count: "exact", head: true })
+    .eq("telefono", telefono)
+    .eq("direccion", "saliente")
+    .in("contenido", [TEXTOS.fotoRecibida, TEXTOS.fotoRecibidaSinUbicacion])
+    .gte("creado_en", haceRato);
+  if (count) return;
+
+  const texto = paquetes.some((p) => p.ubicacion_entrega_lat !== null) ? TEXTOS.fotoRecibida : TEXTOS.fotoRecibidaSinUbicacion;
+  const [envio] = await enviarPorWhatsApp([{ telefono, cuerpo: cuerpoTexto(texto) }]);
+  await admin.from("mensajes_whatsapp").insert({
+    paquete_id: paquetes[0].id,
+    telefono,
+    direccion: "saliente",
+    tipo: "respuesta",
+    estado: envio.ok ? "enviado" : "fallido",
+    contenido: texto,
+    proveedor_id: envio.id ?? null,
+    sesion: envio.sesion ?? null,
+    error: envio.error ?? null,
+  });
+}
+
+/** Guarda lo que escribió el cliente cuando el sistema no le contesta solo. */
+async function anotarSinRespuesta(admin: Admin, telefono: string, contenido: string): Promise<void> {
+  await admin.from("mensajes_whatsapp").insert({
+    paquete_id: null,
+    telefono,
+    direccion: "entrante",
+    tipo: "respuesta",
+    estado: "entregado",
+    contenido,
+  });
 }
 
 export async function POST(request: Request) {
