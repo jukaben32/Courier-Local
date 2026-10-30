@@ -1,5 +1,6 @@
 import "server-only";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { formatearTelefono, normalizarTelefonoRD } from "@/lib/telefono";
 import { enviarPorWhatsApp } from "./cliente";
 import { cuerpoBotones, cuerpoPedirUbicacion, cuerpoTexto } from "./envio";
 import {
@@ -24,6 +25,7 @@ import {
   ACCION_OTRA_PERSONA,
   ACCION_RETIRO,
   TEXTOS,
+  textoConfirmacionFinal,
   textoUbicacionRecibida,
 } from "./plantillas";
 
@@ -39,6 +41,7 @@ interface PaqueteAbierto {
   nombre_etiqueta: string;
   ventana_horaria: string | null;
   hora_preferida: string | null;
+  ubicacion_entrega_lat: number | null;
 }
 
 async function paquetesDelCliente(admin: Admin, telefono: string, estados: string[]): Promise<PaqueteAbierto[]> {
@@ -48,7 +51,7 @@ async function paquetesDelCliente(admin: Admin, telefono: string, estados: strin
 
   const { data } = await admin
     .from("paquetes")
-    .select("id, estado, nombre_etiqueta, ventana_horaria, hora_preferida")
+    .select("id, estado, nombre_etiqueta, ventana_horaria, hora_preferida, ubicacion_entrega_lat")
     .in("destinatario_id", ids)
     .in("estado", estados)
     .order("fecha_recibido");
@@ -123,6 +126,46 @@ async function pedirUbicacion(admin: Admin, telefono: string, paqueteId: string 
 }
 
 /**
+ * Versión OpenWA: cuando ya hay hora y ubicación se manda UN solo mensaje de cierre, con el
+ * nombre y el teléfono del repartidor para que arreglen cualquier detalle directamente.
+ */
+async function confirmarCoordinacion(admin: Admin, telefono: string, paqueteIds: string[]): Promise<void> {
+  const { data } = await admin
+    .from("paquetes")
+    .select("id, nombre_etiqueta, ventana_horaria, hora_preferida, repartidores!paquetes_repartidor_asignado_id_fkey(nombre, telefono)")
+    .in("id", paqueteIds)
+    .eq("estado", "confirmado")
+    .order("fecha_recibido")
+    .limit(1);
+  const paquete = (data ?? [])[0] as unknown as
+    | {
+        id: string;
+        nombre_etiqueta: string;
+        ventana_horaria: string | null;
+        hora_preferida: string | null;
+        repartidores: { nombre: string; telefono: string | null } | null;
+      }
+    | undefined;
+  if (!paquete) return;
+
+  const { data: franjas } = await admin.from("franjas").select("codigo, hora_inicio, hora_fin");
+  const franja = ((franjas ?? []) as Franja[]).find((f) => f.codigo === paquete.ventana_horaria);
+  const hora = horaDeColumna(paquete.hora_preferida);
+  const horario = hora !== null ? etiquetaBloque(hora) : franja ? tituloFranja(franja) : null;
+
+  const telefonoRepartidor = paquete.repartidores?.telefono ?? null;
+  const normalizado = telefonoRepartidor ? normalizarTelefonoRD(telefonoRepartidor) : null;
+  const repartidor = paquete.repartidores
+    ? { nombre: paquete.repartidores.nombre, telefono: normalizado ? formatearTelefono(normalizado) : telefonoRepartidor }
+    : null;
+
+  await responder(admin, telefono, paquete.id, {
+    tipo: "respuesta",
+    ...texto(textoConfirmacionFinal(horario, paquete.nombre_etiqueta, repartidor)),
+  });
+}
+
+/**
  * Lo que pasa cuando un cliente escribe o toca un botón. Sin sesión de usuario: usa la clave de
  * servidor. Cada paso solo toca los paquetes de ESE teléfono que están en un estado válido.
  */
@@ -154,6 +197,7 @@ export async function procesarEntrante(
   }
 
   if (entrante.tipo === "ubicacion") {
+    const yaTeniaUbicacion = abiertos.some((p) => p.ubicacion_entrega_lat !== null);
     await admin
       .from("paquetes")
       .update({
@@ -162,6 +206,13 @@ export async function procesarEntrante(
         ubicacion_entrega_en: new Date().toISOString(),
       })
       .in("id", abiertos.map((p) => p.id));
+
+    if (usaOpenWA()) {
+      // Sin mensajes intermedios: solo se responde si ya eligió hora y es la primera vez que manda su ubicación
+      const confirmados = abiertos.filter((p) => p.estado === "confirmado");
+      if (confirmados.length > 0 && !yaTeniaUbicacion) await confirmarCoordinacion(admin, telefono, confirmados.map((p) => p.id));
+      return;
+    }
 
     const { data: franjas } = await admin.from("franjas").select("codigo, hora_inicio, hora_fin");
     const franja = ((franjas ?? []) as Franja[]).find((f) => f.codigo === abiertos[0].ventana_horaria);
@@ -194,6 +245,10 @@ export async function procesarEntrante(
         hora_confirmacion: new Date().toISOString(),
       })
       .in("id", objetivo);
+    if (usaOpenWA()) {
+      if (abiertos.some((p) => p.ubicacion_entrega_lat !== null)) await confirmarCoordinacion(admin, telefono, objetivo);
+      return;
+    }
     await pedirUbicacion(admin, telefono, primero);
     return;
   }
@@ -204,6 +259,9 @@ export async function procesarEntrante(
       await pedirFranjas(admin, telefono, primero, TEXTOS.franjaPasada);
       return;
     }
+    // Si repite la misma hora que ya tenía confirmada, no se le vuelve a escribir
+    const columna = columnaDeHora(entrante.hora);
+    const mismaHora = abiertos.filter((p) => objetivo.includes(p.id)).every((p) => p.estado === "confirmado" && p.hora_preferida === columna);
     await admin
       .from("paquetes")
       .update({
@@ -213,6 +271,10 @@ export async function procesarEntrante(
         hora_confirmacion: new Date().toISOString(),
       })
       .in("id", objetivo);
+    if (usaOpenWA()) {
+      if (!mismaHora && abiertos.some((p) => p.ubicacion_entrega_lat !== null)) await confirmarCoordinacion(admin, telefono, objetivo);
+      return;
+    }
     await pedirUbicacion(admin, telefono, primero);
     return;
   }
@@ -227,6 +289,8 @@ export async function procesarEntrante(
         .in("id", objetivo);
       await responder(admin, telefono, primero, { tipo: "respuesta", ...texto(TEXTOS.retiro) });
     } else if (entrante.accion === ACCION_OTRA_PERSONA) {
+      // OpenWA: no se contesta; el mensaje de cierre ya recuerda llevar la cédula del destinatario
+      if (usaOpenWA()) return;
       await responder(admin, telefono, primero, { tipo: "respuesta", ...texto(TEXTOS.otraPersona) });
       await pedirFranjas(admin, telefono, primero, TEXTOS.pedirFranja);
     }

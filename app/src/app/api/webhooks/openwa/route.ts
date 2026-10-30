@@ -3,7 +3,6 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { procesarEntrante } from "@/lib/whatsapp/conversacion";
 import { enviarPorWhatsApp } from "@/lib/whatsapp/cliente";
 import { cuerpoTexto } from "@/lib/whatsapp/envio";
-import { TEXTOS } from "@/lib/whatsapp/plantillas";
 import { configHorasDesdeEntorno, sesionesOpenWA } from "@/lib/whatsapp/proveedor";
 import { interpretarRespuestaTexto, type OpcionMenu } from "@/lib/whatsapp/menu";
 import {
@@ -100,14 +99,11 @@ async function procesarEvento(admin: Admin, evento: EventoOpenWA): Promise<void>
 }
 
 const ESTADOS_ABIERTOS = ["recibido", "notificado", "confirmado", "en_ruta", "intento_fallido"];
-// Si manda varias fotos seguidas, se le agradece una sola vez
-const MINUTOS_SIN_REPETIR_GRACIAS = 15;
-
 async function recibirFoto(admin: Admin, telefono: string, adjunto: string, archivo: string | null, sesion: string | null): Promise<void> {
   const { data: personas } = await admin.from("destinatarios").select("id").eq("telefono", telefono);
   const { data: abiertos } = await admin
     .from("paquetes")
-    .select("id, ubicacion_entrega_lat")
+    .select("id")
     .in("destinatario_id", (personas ?? []).map((p) => p.id))
     .in("estado", ESTADOS_ABIERTOS)
     .order("fecha_recibido");
@@ -123,31 +119,6 @@ async function recibirFoto(admin: Admin, telefono: string, adjunto: string, arch
     // "chatId|messageId": con esto la oficina (y luego el repartidor) puede ver el archivo
     proveedor_id: archivo,
     sesion,
-  });
-  if (paquetes.length === 0) return;
-
-  const haceRato = new Date(Date.now() - MINUTOS_SIN_REPETIR_GRACIAS * 60_000).toISOString();
-  const { count } = await admin
-    .from("mensajes_whatsapp")
-    .select("id", { count: "exact", head: true })
-    .eq("telefono", telefono)
-    .eq("direccion", "saliente")
-    .in("contenido", [TEXTOS.fotoRecibida, TEXTOS.fotoRecibidaSinUbicacion])
-    .gte("creado_en", haceRato);
-  if (count) return;
-
-  const texto = paquetes.some((p) => p.ubicacion_entrega_lat !== null) ? TEXTOS.fotoRecibida : TEXTOS.fotoRecibidaSinUbicacion;
-  const [envio] = await enviarPorWhatsApp([{ telefono, cuerpo: cuerpoTexto(texto) }]);
-  await admin.from("mensajes_whatsapp").insert({
-    paquete_id: paquetes[0].id,
-    telefono,
-    direccion: "saliente",
-    tipo: "respuesta",
-    estado: envio.ok ? "enviado" : "fallido",
-    contenido: texto,
-    proveedor_id: envio.id ?? null,
-    sesion: envio.sesion ?? null,
-    error: envio.error ?? null,
   });
 }
 

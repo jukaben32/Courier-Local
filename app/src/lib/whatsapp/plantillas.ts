@@ -152,6 +152,24 @@ export const TEXTOS = {
     "Si necesitas hablar con una persona, llama a la oficina.",
 } as const;
 
+/**
+ * Único mensaje de cierre (versión OpenWA): se manda cuando ya tenemos hora y ubicación.
+ * Lleva el contacto del repartidor para que arreglen cualquier detalle directamente.
+ */
+export function textoConfirmacionFinal(
+  horario: string | null,
+  nombreEtiqueta: string,
+  repartidor: { nombre: string; telefono: string | null } | null
+): string {
+  const cuando = horario ? ` en el horario de ${horario}` : "";
+  const nombre = repartidor?.nombre.trim().split(/\s+/)[0];
+  const quien = nombre
+    ? `Te lo lleva ${nombre}${repartidor?.telefono ? ` (${repartidor.telefono})` : ""}`
+    : "Tu repartidor pasará";
+  const contacto = repartidor?.telefono ? " Cualquier cambio, escríbele directo." : "";
+  return `Listo ✅ ${quien}${cuando}.\nTen a mano la cédula de ${nombreEtiqueta.trim()}.${contacto}`;
+}
+
 export function textoUbicacionRecibida(horario: string | null, nombreEtiqueta: string): string {
   const cuando = horario ? ` en el horario de ${horario}` : "";
   return `Ubicación recibida ✅ Tu repartidor pasará${cuando}. Ten lista la cédula de ${nombreEtiqueta.trim()}.`;

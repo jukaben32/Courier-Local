@@ -19,6 +19,7 @@ import {
   firmaOpenWAValida,
   interpretarEventoOpenWA,
 } from "../whatsapp/openwa";
+import { textoConfirmacionFinal } from "../whatsapp/plantillas";
 import { ritmoDesdeEntorno } from "../whatsapp/proveedor";
 import { aTextoPlano, cuerpoMenuHoras } from "../whatsapp/textoPlano";
 import { textoDePlantilla } from "../whatsapp/textosOpenWA";
@@ -141,22 +142,19 @@ describe("interpretarRespuestaTexto", () => {
 describe("textos de OpenWA", () => {
   const params = ["María", "guía CR2026-48213", "María Altagracia Pérez"];
 
-  it("el aviso se presenta, usa nombre y guía, pone retiro primero y todas las horas", () => {
+  it("el aviso se presenta y pide ubicación y hora a la vez, solo con horas numeradas", () => {
     const m = textoDePlantilla("aviso_paquete_llegada", params, { ahora: MEDIODIA_Y_MEDIA, azar: () => 0 })!;
     expect(m.texto).toContain("*Filpo Pack*");
     expect(m.texto).toContain("María");
     expect(m.texto).toContain("guía CR2026-48213");
-    expect(m.texto).toContain("1 - Paso a buscarlo a la oficina");
-    expect(m.texto).toContain("2 - Llévenmelo entre 1 y 2 pm");
-    expect(m.texto).toContain("7 - Llévenmelo entre 6 y 7 pm");
-    expect(m.texto).toContain("8 - Otra persona lo recibe");
-    expect(m.texto).toContain("María Altagracia Pérez");
+    expect(m.texto).toContain("📍 Tu ubicación");
+    expect(m.texto).toContain("🕐 La hora");
+    expect(m.texto).toContain("1 - Llévenmelo entre 1 y 2 pm");
+    expect(m.texto).toContain("6 - Llévenmelo entre 6 y 7 pm");
+    expect(m.texto).not.toContain("oficina");
+    expect(m.texto).toContain("foto o video");
     expect(m.texto).toContain("responde NO");
-    expect(m.opciones).toEqual([
-      { numero: 1, tipo: "retiro" },
-      ...[13, 14, 15, 16, 17, 18].map((hora, i) => ({ numero: i + 2, tipo: "hora", hora })),
-      { numero: 8, tipo: "otra_persona" },
-    ]);
+    expect(m.opciones).toEqual([13, 14, 15, 16, 17, 18].map((hora, i) => ({ numero: i + 1, tipo: "hora", hora })));
   });
 
   it("el texto y las opciones del aviso siempre coinciden en cantidad", () => {
@@ -170,9 +168,9 @@ describe("textos de OpenWA", () => {
     expect(new Set(textos).size).toBe(3);
   });
 
-  it("si ya no hay horas hoy, solo ofrece retiro y avisa que mañana se coordina", () => {
+  it("si ya no hay horas hoy, no pide nada y avisa que mañana se coordina", () => {
     const m = textoDePlantilla("aviso_paquete_llegada", params, { ahora: new Date("2026-10-26T22:45:00Z") })!;
-    expect(m.opciones.map((o) => o.tipo)).toEqual(["retiro", "otra_persona"]);
+    expect(m.opciones).toEqual([]);
     expect(m.texto).toContain("mañana a primera hora");
   });
 
@@ -192,6 +190,22 @@ describe("textos de OpenWA", () => {
   it("usa el remitente configurado", () => {
     const m = textoDePlantilla("aviso_paquete_llegada", params, { ahora: MEDIODIA_Y_MEDIA, remitente: "Otra Marca" })!;
     expect(m.texto).toContain("Otra Marca");
+  });
+});
+
+describe("mensaje de cierre", () => {
+  it("lleva el horario, el repartidor con su teléfono y la cédula", () => {
+    const t = textoConfirmacionFinal("1 pm a 2 pm", "María Pérez", { nombre: "Isamar Santana", telefono: "829-555-0123" });
+    expect(t).toContain("Te lo lleva Isamar (829-555-0123) en el horario de 1 pm a 2 pm");
+    expect(t).toContain("cédula de María Pérez");
+    expect(t).toContain("escríbele directo");
+  });
+
+  it("sin repartidor o sin teléfono sigue siendo un mensaje correcto", () => {
+    expect(textoConfirmacionFinal(null, "Ana", null)).toBe("Listo ✅ Tu repartidor pasará.\nTen a mano la cédula de Ana.");
+    const sinTelefono = textoConfirmacionFinal("2 pm a 3 pm", "Ana", { nombre: "Luis Gómez", telefono: null });
+    expect(sinTelefono).toContain("Te lo lleva Luis en el horario");
+    expect(sinTelefono).not.toContain("escríbele");
   });
 });
 

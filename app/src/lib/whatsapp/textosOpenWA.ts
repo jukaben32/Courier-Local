@@ -33,7 +33,6 @@ function construirMenu(lineas: Linea[]): { lineas: string; opciones: OpcionMenu[
 }
 
 const LINEA_RETIRO: Linea = { texto: "Paso a buscarlo a la oficina", opcion: { tipo: "retiro" } };
-const LINEA_OTRA_PERSONA: Linea = { texto: "Otra persona lo recibe", opcion: { tipo: "otra_persona" } };
 
 function lineasHoras(ctx: Pick<Contexto, "ahora" | "config">): Linea[] {
   return bloquesDisponibles(ctx.ahora, ctx.config).map((hora) => ({
@@ -52,27 +51,32 @@ export function menuSoloHoras(introduccion: string, ctx: Pick<Contexto, "ahora" 
 }
 
 function avisoLlegada(p: string[], ctx: Contexto): MensajeConMenu {
-  const [nombre, guias, nombreCompleto] = p;
+  const [nombre, guias] = p;
   const horas = lineasHoras(ctx);
-  const menu = construirMenu([LINEA_RETIRO, ...horas, LINEA_OTRA_PERSONA]);
+  // Solo horas: el aviso pide DOS datos (ubicación y hora) para armar la ruta. Quien quiera pasar por la
+  // oficina o recibir otra persona lo escribe y se entiende igual (ver interpretarRespuestaTexto).
+  const menu = construirMenu(horas);
   const { remitente } = ctx;
 
   const variantes = [
-    `Hola ${nombre} 👋, te escribe *${remitente}* (San Pedro de Macorís).\nTu paquete de Temu (${guias}) ya llegó. ¿Cómo prefieres recibirlo?`,
-    `Buenas ${nombre}, soy de *${remitente}* en San Pedro de Macorís.\nYa tenemos tu paquete de Temu (${guias}). ¿Cómo lo quieres recibir?`,
-    `${nombre}, buen día. Te saluda *${remitente}* (San Pedro de Macorís).\nLlegó tu paquete de Temu (${guias}). Dinos cómo lo prefieres:`,
+    `Hola ${nombre} 👋, te escribe *${remitente}* (San Pedro de Macorís).\nTu paquete de Temu (${guias}) ya llegó.`,
+    `Buenas ${nombre}, soy de *${remitente}* en San Pedro de Macorís.\nYa tenemos tu paquete de Temu (${guias}).`,
+    `${nombre}, buen día. Te saluda *${remitente}* (San Pedro de Macorís).\nLlegó tu paquete de Temu (${guias}).`,
   ];
   const cabecera = variantes[Math.min(variantes.length - 1, Math.floor(ctx.azar() * variantes.length))];
 
-  const sinHoras = horas.length === 0 ? "\nPor hoy ya no hacemos entregas; mañana a primera hora te escribimos para coordinar." : "";
-  const texto = [
-    cabecera,
-    "Responde solo con el número:",
-    menu.lineas,
-    ...(horas.length > 0 ? [PIE_HORA] : []),
-    `Ten a mano la cédula de ${nombreCompleto}.${sinHoras}`,
-    `Guarda este número para tus próximos avisos. ${PIE_SALIDA}`,
-  ].join("\n");
+  const pedido =
+    horas.length > 0
+      ? [
+          "Para llevártelo, respóndenos:",
+          "📍 Tu ubicación (toca el clip 📎 > Ubicación > Enviar tu ubicación actual)",
+          "🕐 La hora, solo con el número:",
+          menu.lineas,
+          PIE_HORA,
+          "Si tu casa es difícil de encontrar, mándanos también una foto o video.",
+        ]
+      : ["Por hoy ya no hacemos entregas; mañana a primera hora te escribimos para coordinar."];
+  const texto = [cabecera, ...pedido, `Guarda este número para tus próximos avisos. ${PIE_SALIDA}`].join("\n");
   return { texto, opciones: menu.opciones };
 }
 
