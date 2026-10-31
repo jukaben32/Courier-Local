@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { formatearCedula } from "@/lib/cedula";
 import { formatearTelefono } from "@/lib/telefono";
 import { nivelPlazo, type NivelPlazo } from "@/lib/plazo";
 import { createClient } from "@/lib/supabase/server";
@@ -44,7 +45,7 @@ interface FilaPaquete {
   voluminoso: boolean;
   intentos_realizados: number;
   fecha_recibido: string;
-  destinatarios: { telefono: string } | null;
+  destinatarios: { telefono: string; cedula: string | null } | null;
   sectores: { nombre: string } | null;
   repartidores: { nombre: string } | null;
 }
@@ -60,7 +61,7 @@ export default async function PaginaPaquetes({
   let consulta = supabase
     .from("paquetes")
     .select(
-      "id, numero_guia, nombre_etiqueta, estado, voluminoso, intentos_realizados, fecha_recibido, destinatarios(telefono), sectores(nombre), repartidores:repartidor_asignado_id(nombre)"
+      "id, numero_guia, nombre_etiqueta, estado, voluminoso, intentos_realizados, fecha_recibido, destinatarios(telefono, cedula), sectores(nombre), repartidores:repartidor_asignado_id(nombre)"
     )
     .order("fecha_recibido", { ascending: false })
     .limit(LIMITE_FILAS);
@@ -69,7 +70,18 @@ export default async function PaginaPaquetes({
   if (vista === "cerrados") consulta = consulta.not("estado", "in", `(${ESTADOS_ACTIVOS.join(",")})`);
 
   const texto = q.trim().replace(/[,()%*]/g, " ");
-  if (texto) consulta = consulta.or(`numero_guia.ilike.%${texto}%,nombre_etiqueta.ilike.%${texto}%`);
+  if (texto) {
+    // También se busca por teléfono o cédula (solo números, de 4 dígitos en adelante)
+    const digitos = texto.replace(/[^0-9]/g, "");
+    let coincidencias: string[] = [];
+    if (digitos.length >= 4) {
+      const { data: personas } = await supabase.from("destinatarios").select("id").or(`telefono.ilike.%${digitos}%,cedula.ilike.%${digitos}%`).limit(200);
+      coincidencias = (personas ?? []).map((p: { id: string }) => p.id);
+    }
+    const condiciones = [`numero_guia.ilike.%${texto}%`, `nombre_etiqueta.ilike.%${texto}%`];
+    if (coincidencias.length > 0) condiciones.push(`destinatario_id.in.(${coincidencias.join(",")})`);
+    consulta = consulta.or(condiciones.join(","));
+  }
 
   const [{ data, error }, { count: pendientesDeAviso }] = await Promise.all([
     consulta,
@@ -116,8 +128,8 @@ export default async function PaginaPaquetes({
           <input
             name="q"
             defaultValue={q}
-            placeholder="Buscar por guía o nombre"
-            aria-label="Buscar por guía o nombre"
+            placeholder="Buscar por guía, nombre, teléfono o cédula"
+            aria-label="Buscar por guía, nombre, teléfono o cédula"
             className="w-full max-w-sm rounded-lg border border-linea bg-tarjeta px-3 py-2 text-sm"
           />
         </form>
@@ -142,6 +154,7 @@ export default async function PaginaPaquetes({
                 {p.voluminoso && <span className="ml-2 rounded bg-tinta/10 px-1.5 py-0.5 text-[11px]">Grande</span>}
                 {p.destinatarios && <> · {formatearTelefono(p.destinatarios.telefono)}</>}
               </p>
+              {p.destinatarios?.cedula && <p className="text-xs text-tinta-2">Cédula {formatearCedula(p.destinatarios.cedula)}</p>}
               <p>
                 {p.sectores?.nombre ?? <span className="text-rojo">Sin sector</span>} · {p.repartidores?.nombre ?? <span className="text-rojo">Sin asignar</span>}
               </p>
@@ -155,12 +168,14 @@ export default async function PaginaPaquetes({
       </ul>
 
       <div className="hidden overflow-x-auto rounded-xl border border-linea bg-tarjeta md:block">
-        <table className="w-full min-w-[720px] text-left text-sm">
+        <table className="w-full min-w-[960px] text-left text-sm">
           <thead className="border-b border-linea bg-fondo/60 text-xs uppercase tracking-wide text-tinta-2">
             <tr>
               <th className="px-4 py-3">Plazo</th>
               <th className="px-4 py-3">Guía</th>
               <th className="px-4 py-3">Destinatario</th>
+              <th className="px-4 py-3">Teléfono</th>
+              <th className="px-4 py-3">Cédula</th>
               <th className="px-4 py-3">Sector</th>
               <th className="px-4 py-3">Repartidor</th>
               <th className="px-4 py-3">Estado</th>
@@ -169,7 +184,7 @@ export default async function PaginaPaquetes({
           <tbody>
             {filas.length === 0 && (
               <tr>
-                <td colSpan={6} className="px-4 py-10 text-center text-tinta-2">
+                <td colSpan={8} className="px-4 py-10 text-center text-tinta-2">
                   No hay paquetes en esta vista.
                 </td>
               </tr>
@@ -192,8 +207,15 @@ export default async function PaginaPaquetes({
                   </td>
                   <td className="px-4 py-3">
                     <div className="font-medium">{p.nombre_etiqueta}</div>
-                    {p.destinatarios && (
-                      <div className="text-xs text-tinta-2">{formatearTelefono(p.destinatarios.telefono)}</div>
+                  </td>
+                  <td className="whitespace-nowrap px-4 py-3 tabular-nums">
+                    {p.destinatarios ? formatearTelefono(p.destinatarios.telefono) : <span className="text-tinta-2">—</span>}
+                  </td>
+                  <td className="whitespace-nowrap px-4 py-3 tabular-nums">
+                    {p.destinatarios?.cedula ? (
+                      formatearCedula(p.destinatarios.cedula)
+                    ) : (
+                      <span className="text-tinta-2" title="Se registra al verificar la cédula en la primera entrega">—</span>
                     )}
                   </td>
                   <td className="px-4 py-3">{p.sectores?.nombre ?? <span className="text-rojo">Sin sector</span>}</td>
