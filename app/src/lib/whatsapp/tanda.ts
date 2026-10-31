@@ -9,6 +9,7 @@ import { estadoSesionOpenWA } from "./openwa";
 import { telefonosQueDijeronNo } from "./optout";
 import { configsOpenWA, ritmoDesdeEntorno } from "./proveedor";
 import { repartirCola, type PersonaEnCola } from "./reparto";
+import { rutasPermitidas } from "./soloRutas";
 
 /** Un mismo paquete de avisos fallando 2 veces en el día deja de reintentarse (número inválido, etc.). */
 const FALLOS_MAXIMOS_POR_PERSONA = 2;
@@ -105,12 +106,25 @@ async function ejecutarTanda(ahora: Date): Promise<ResumenTanda> {
   const sesiones = await Promise.all(configs.map((c) => estadoSesionOpenWA(c)));
 
   const hace24h = new Date(ahora.getTime() - 24 * 60 * 60 * 1000).toISOString();
+  // ENVIO_SOLO_REPARTIDORES: si está puesta, solo se avisa a las rutas de esos repartidores
+  const permitidas = await rutasPermitidas();
+  if (permitidas && permitidas.ids.length === 0) {
+    return {
+      enviados: 0,
+      fallidos: 0,
+      enCola: 0,
+      enviadosHoy: 0,
+      terminaHacia: null,
+      pausa: "ENVIO_SOLO_REPARTIDORES no coincide con ningún repartidor: no se avisa a nadie.",
+    };
+  }
+  const consultaPaquetes = admin
+    .from("paquetes")
+    .select("id, numero_guia, nombre_etiqueta, destinatario_id, fecha_recibido, destinatarios(telefono)")
+    .eq("estado", "recibido")
+    .order("fecha_recibido");
   const [{ data: paquetes }, { data: delDia }] = await Promise.all([
-    admin
-      .from("paquetes")
-      .select("id, numero_guia, nombre_etiqueta, destinatario_id, fecha_recibido, destinatarios(telefono)")
-      .eq("estado", "recibido")
-      .order("fecha_recibido"),
+    permitidas ? consultaPaquetes.in("repartidor_asignado_id", permitidas.ids) : consultaPaquetes,
     admin
       .from("mensajes_whatsapp")
       .select("telefono, sesion, estado, creado_en")

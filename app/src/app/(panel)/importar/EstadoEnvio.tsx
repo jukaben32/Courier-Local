@@ -19,6 +19,12 @@ export function EstadoEnvio({ datos }: { datos: DatosEstadoEnvio }) {
         </p>
       </div>
 
+      {datos.soloRutas && (
+        <p className="rounded-lg border border-ambar/50 bg-ambar/10 px-3 py-2 text-sm font-medium text-[#8a6200]">
+          Los avisos se limitan a la ruta de: {datos.soloRutas.length ? datos.soloRutas.join(", ") : "nadie (el filtro no coincide con ningún repartidor)"}. Los demás paquetes quedan sin avisar.
+        </p>
+      )}
+
       <ul className="space-y-1.5">
         {estado.alertas.map((a) => (
           <li key={a.texto} role={a.nivel === "rojo" ? "alert" : undefined} className={`rounded-lg border px-3 py-2 text-sm font-medium ${COLOR[a.nivel]}`}>

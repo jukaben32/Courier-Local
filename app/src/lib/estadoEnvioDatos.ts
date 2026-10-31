@@ -3,6 +3,7 @@ import { evaluarEstadoEnvio, type EstadoEnvio, type SesionEstado } from "./estad
 import { diaDeRD } from "./periodoPago";
 import type { createClient } from "./supabase/server";
 import { configsOpenWA, ritmoDesdeEntorno, usaOpenWA } from "./whatsapp/proveedor";
+import { rutasPermitidas } from "./whatsapp/soloRutas";
 
 type Supabase = Awaited<ReturnType<typeof createClient>>;
 
@@ -11,6 +12,8 @@ export interface DatosEstadoEnvio {
   sesiones: SesionEstado[] | null;
   enCola: number;
   avisadosHoy: number;
+  /** Nombres de los repartidores a los que se limita el envío, o null si se avisa a todos. */
+  soloRutas: string[] | null;
 }
 
 /** Cada cuenta de WhatsApp tal como la ve OpenWA. null si OpenWA no responde. */
@@ -44,6 +47,9 @@ export async function leerEstadoEnvio(supabase: Supabase): Promise<DatosEstadoEn
   if (!usaOpenWA()) return null;
   const inicioHoy = new Date(`${diaDeRD(new Date())}T00:00:00-04:00`).toISOString();
 
+  const permitidas = await rutasPermitidas();
+  const consultaCola = supabase.from("paquetes").select("id", { count: "exact", head: true }).eq("estado", "recibido");
+
   const [sesiones, { data: avisos }, { count: enCola }] = await Promise.all([
     leerSesiones(),
     supabase
@@ -54,7 +60,7 @@ export async function leerEstadoEnvio(supabase: Supabase): Promise<DatosEstadoEn
       .gte("creado_en", inicioHoy)
       .order("creado_en", { ascending: false })
       .limit(5000),
-    supabase.from("paquetes").select("id", { count: "exact", head: true }).eq("estado", "recibido"),
+    permitidas ? consultaCola.in("repartidor_asignado_id", permitidas.ids.length ? permitidas.ids : ["00000000-0000-0000-0000-000000000000"]) : consultaCola,
   ]);
 
   const filas = (avisos ?? []) as { telefono: string; estado: string; creado_en: string }[];
@@ -71,5 +77,5 @@ export async function leerEstadoEnvio(supabase: Supabase): Promise<DatosEstadoEn
     ahora: new Date(),
     ritmo: ritmoDesdeEntorno(),
   });
-  return { estado, sesiones, enCola: enCola ?? 0, avisadosHoy };
+  return { estado, sesiones, enCola: enCola ?? 0, avisadosHoy, soloRutas: permitidas ? permitidas.nombres : null };
 }
