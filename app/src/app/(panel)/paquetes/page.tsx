@@ -89,10 +89,10 @@ export default async function PaginaPaquetes({
         <div className="flex flex-wrap items-start gap-3">
           <BotonAvisos pendientes={pendientesDeAviso ?? 0} simulado={whatsappSimulado()} />
           <Link
-            href="/recibir"
+            href="/importar"
             className="rounded-lg bg-acento px-4 py-2.5 text-sm font-semibold text-[#1a0900] hover:bg-acento-oscuro hover:text-white"
           >
-            Recibir paquetes
+            Importar listado
           </Link>
         </div>
       </div>
