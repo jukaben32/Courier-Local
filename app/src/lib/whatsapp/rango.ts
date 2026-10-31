@@ -35,7 +35,8 @@ function conNumeros(texto: string): string {
 }
 
 const PARTE_MANANA = /\b(?:por|en|de|durante|a) la manana\b/g;
-const RANGO = /\b(\d{1,2})(?::(\d{2}))?\s*(am|pm)?\s*(?:a|y|hasta|-)\s*(?:las\s+)?(\d{1,2})(?::(\d{2}))?\s*(am|pm)?\b/;
+const TOPE = /\b(?:hasta|antes de)\s+(?:las?\s+)?(\d{1,2})(?::(\d{2}))?\s*(am|pm)?\b/;
+const RANGO =/\b(\d{1,2})(?::(\d{2}))?\s*(am|pm)?\s*(?:a|y|hasta|-)\s*(?:las\s+)?(\d{1,2})(?::(\d{2}))?\s*(am|pm)?\b/;
 
 /**
  * Devuelve el rango pedido, ya recortado al horario de entrega, o null si no se entiende
@@ -72,6 +73,12 @@ export function interpretarRango(texto: string, ahora: Date, config: ConfigHoras
   } else if (/\b(?:cualquier hora|cualquier momento|todo el dia|cuando sea|a cualquier hora)\b/.test(t)) {
     desde = config.desde;
     hasta = config.hasta;
+  } else if (TOPE.test(t)) {
+    // "hasta las 2 de la tarde" / "antes de las 3": disponible desde el inicio del horario hasta esa hora
+    const [, h, min, marca] = t.match(TOPE)!;
+    const fin = resolver(Number(h), marca);
+    desde = config.desde;
+    hasta = Number(min ?? 0) > 0 ? fin + 1 : fin;
   } else if (/\bmediodia\b/.test(t)) {
     desde = 12;
     hasta = 14;

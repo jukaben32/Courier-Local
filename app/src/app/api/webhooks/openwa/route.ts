@@ -33,7 +33,12 @@ const PREVIOS: Record<EstadoMensajeOpenWA, string[]> = {
 
 type Admin = ReturnType<typeof createAdminClient>;
 
-async function procesarEvento(admin: Admin, evento: EventoOpenWA): Promise<void> {
+interface OpcionesProceso {
+  /** Recuperación de mensajes viejos: se guardan sin pedirle aclaraciones al cliente. */
+  sinAclarar?: boolean;
+}
+
+async function procesarEvento(admin: Admin, evento: EventoOpenWA, opciones: OpcionesProceso = {}): Promise<void> {
   if (evento.clase === "estado") {
     const previos = PREVIOS[evento.estado];
     if (previos.length === 0) return;
@@ -47,8 +52,22 @@ async function procesarEvento(admin: Admin, evento: EventoOpenWA): Promise<void>
 
   // Solo se atiende a quien nosotros le escribimos antes: el número lo usa también la oficina
   // para hablar con gente, y esas conversaciones no deben tocarse ni guardarse.
-  const { data: menu } = await admin.from("menus_whatsapp").select("opciones, sesion").eq("telefono", evento.telefono).maybeSingle();
-  if (!menu) return;
+  const { data: menuGuardado } = await admin.from("menus_whatsapp").select("opciones, sesion").eq("telefono", evento.telefono).maybeSingle();
+  let menu = menuGuardado;
+  if (!menu) {
+    // Los avisos sin menú numerado no dejaban registro: se acepta a quien tiene un aviso real nuestro de la última semana
+    const semana = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+    const { count } = await admin
+      .from("mensajes_whatsapp")
+      .select("id", { count: "exact", head: true })
+      .eq("telefono", evento.telefono)
+      .eq("direccion", "saliente")
+      .eq("tipo", "aviso")
+      .or("proveedor_id.is.null,proveedor_id.not.like.sim-*")
+      .gte("creado_en", semana);
+    if (!count) return;
+    menu = { opciones: [], sesion: null };
+  }
 
   // Con ENVIO_SOLO_REPARTIDORES el bot solo conversa con los clientes de esas rutas: a los demás se les
   // guarda el mensaje (se ve en "En vivo") pero no se les contesta.
@@ -80,7 +99,7 @@ async function procesarEvento(admin: Admin, evento: EventoOpenWA): Promise<void>
     configHorasDesdeEntorno(process.env)
   );
   // No se entiende: se anota (y se ve en "En vivo"). Si aún falta su hora, se le aclara UNA sola vez.
-  if (!interpretacion) return aclararHora(admin, evento.telefono, evento.texto);
+  if (!interpretacion) return opciones.sinAclarar ? anotarSinRespuesta(admin, evento.telefono, evento.texto) : aclararHora(admin, evento.telefono, evento.texto);
 
   if (interpretacion.tipo === "rechazo") {
     await admin.from("mensajes_whatsapp").insert({
@@ -211,7 +230,8 @@ export async function POST(request: Request) {
 
   after(async () => {
     try {
-      await procesarEvento(admin, evento);
+      // Solo quien conoce el secreto del webhook puede pedir una recuperación (la firma ya se comprobó arriba)
+      await procesarEvento(admin, evento, { sinAclarar: request.headers.get("x-recuperacion") === "1" });
     } catch (error) {
       console.error("Error procesando evento de OpenWA:", error instanceof Error ? error.message : "desconocido");
       // Se libera el evento: si OpenWA lo reenvía, se procesa de nuevo

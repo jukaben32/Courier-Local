@@ -49,6 +49,11 @@ describe("interpretarRango", () => {
     expect(rango("al mediodía")).toEqual({ desde: 12, hasta: 14, dia: "hoy" });
   });
 
+  it("'hasta las X' y 'antes de las X' es disponible desde el inicio hasta esa hora", () => {
+    expect(rango("Estaré disponible para recibir hasta las 2 de la tarde")).toEqual({ desde: 9, hasta: 14, dia: "hoy" });
+    expect(rango("antes de las 3")).toEqual({ desde: 9, hasta: 15, dia: "hoy" });
+  });
+
   it("'mañana' suelta es el día siguiente; 'por la mañana' es la parte del día", () => {
     expect(rango("mañana entre 9 y 11")).toEqual({ desde: 9, hasta: 11, dia: "manana" });
     expect(rango("mañana por la tarde")).toEqual({ desde: 12, hasta: 18, dia: "manana" });

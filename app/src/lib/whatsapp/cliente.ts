@@ -74,13 +74,18 @@ async function enviarPorOpenWA(mensajes: MensajeSaliente[], opciones: OpcionesEn
     const resultado = { ...(await enviarTextoOpenWA(mensaje.telefono, texto.texto, config)), sesion: config.sessionId };
     resultados.push(resultado);
 
-    if (resultado.ok && texto.opciones.length > 0) {
-      const { error } = await admin.from("menus_whatsapp").upsert({
-        telefono: mensaje.telefono,
-        opciones: texto.opciones,
-        sesion: config.sessionId,
-        creado_en: new Date().toISOString(),
-      });
+    if (resultado.ok) {
+      // Sin menú numerado (el aviso nuevo) igual se anota que le escribimos, para que el webhook acepte su respuesta;
+      // pero no se pisa un menú que ya tenía.
+      const { error } = await admin.from("menus_whatsapp").upsert(
+        {
+          telefono: mensaje.telefono,
+          opciones: texto.opciones,
+          sesion: config.sessionId,
+          creado_en: new Date().toISOString(),
+        },
+        texto.opciones.length > 0 ? undefined : { onConflict: "telefono", ignoreDuplicates: true }
+      );
       if (error) console.error("No se pudo guardar el menú de opciones:", error.message);
     }
   }
