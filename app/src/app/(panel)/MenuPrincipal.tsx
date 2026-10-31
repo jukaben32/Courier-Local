@@ -3,13 +3,15 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
+// En el orden en que se trabaja el día: importar la lista, revisar y avisar, ver las respuestas,
+// repartir entre los repartidores y, al final, lo que pasa durante y después de las entregas.
 const ENLACES = [
   { href: "/", texto: "Resumen" },
-  { href: "/repartidores", texto: "Repartidores" },
   { href: "/importar", texto: "Importar listado" },
   { href: "/recibir", texto: "Recibir paquetes" },
   { href: "/paquetes", texto: "Paquetes" },
   { href: "/en-vivo", texto: "En vivo" },
+  { href: "/repartidores", texto: "Repartidores" },
   { href: "/retiros", texto: "Retiros" },
   { href: "/excepciones", texto: "Excepciones" },
   { href: "/cierre", texto: "Cierre del día" },

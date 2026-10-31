@@ -1,10 +1,14 @@
 import Link from "next/link";
 import { porcentaje } from "@/lib/formato";
+import { cargarEnVivo } from "@/lib/enVivoDatos";
+import { ESTADOS_POR_ENTREGAR, resumirHoy, type EntregaHoy, type MensajeHoy, type PaqueteHoy } from "@/lib/hoy";
+import { diaDeRD } from "@/lib/periodoPago";
 import { calcularMetricas, type EntregaM, type MensajeM, type PaqueteM } from "@/lib/metricas";
 import { leerTodo } from "@/lib/paginar";
 import { createClient } from "@/lib/supabase/server";
 import { Dato, Seccion } from "./resumen/Tarjetas";
 import { GraficoDiario } from "./resumen/GraficoDiario";
+import { Hoy } from "./resumen/Hoy";
 
 export const dynamic = "force-dynamic";
 
@@ -44,6 +48,14 @@ interface FilaEntrega {
   resultado: EntregaM["resultado"];
   tipo: string;
   cargado_en_courier: boolean;
+  repartidores: { nombre: string } | null;
+}
+interface FilaPaqueteHoy {
+  id: string;
+  estado: string;
+  fecha_recibido: string;
+  dia_entrega: string | null;
+  ubicacion_entrega_lat: number | null;
   repartidores: { nombre: string } | null;
 }
 interface FilaMensaje {
@@ -105,6 +117,44 @@ export default async function PaginaResumen() {
   }));
 
   const m = calcularMetricas({ paquetes, entregas, mensajes });
+
+  // --- Hoy ---
+  const hoyRD = diaDeRD(new Date());
+  const inicioHoy = new Date(`${hoyRD}T00:00:00-04:00`).toISOString();
+  const columnasHoy = "id, estado, fecha_recibido, dia_entrega, ubicacion_entrega_lat, repartidores:repartidor_asignado_id(nombre)";
+  const [porEntregarDb, llegaronDb, entregasHoyDb, mensajesHoyDb, { count: excepciones }, enVivo] = await Promise.all([
+    leerTodo<FilaPaqueteHoy>((a, b) => supabase.from("paquetes").select(columnasHoy).in("estado", ESTADOS_POR_ENTREGAR).order("id").range(a, b)),
+    leerTodo<FilaPaqueteHoy>((a, b) => supabase.from("paquetes").select(columnasHoy).gte("fecha_recibido", inicioHoy).order("id").range(a, b)),
+    leerTodo<{ resultado: string; repartidores: { nombre: string } | null }>((a, b) =>
+      supabase.from("entregas").select("resultado, repartidores(nombre)").gte("creado_en", inicioHoy).order("id").range(a, b)
+    ),
+    leerTodo<MensajeHoy>((a, b) =>
+      supabase.from("mensajes_whatsapp").select("telefono, direccion").gte("creado_en", inicioHoy).order("id").range(a, b)
+    ),
+    supabase.from("solicitudes_excepcion").select("id", { count: "exact", head: true }).eq("estado", "pendiente"),
+    cargarEnVivo(supabase),
+  ]);
+  const resumenHoy = resumirHoy({
+    hoy: hoyRD,
+    inicioHoy,
+    paquetes: [...porEntregarDb, ...llegaronDb].map<PaqueteHoy>((f) => ({
+      id: f.id,
+      estado: f.estado,
+      fechaRecibido: f.fecha_recibido,
+      diaEntrega: f.dia_entrega,
+      tieneUbicacion: f.ubicacion_entrega_lat !== null,
+      repartidor: f.repartidores?.nombre ?? null,
+    })),
+    entregas: entregasHoyDb.map<EntregaHoy>((f) => ({ repartidor: f.repartidores?.nombre ?? null, resultado: f.resultado })),
+    mensajes: mensajesHoyDb,
+  });
+  const alertas = {
+    atencion: enVivo.filas.filter((f) => f.estado === "atencion").length,
+    sinSubir: entregas.filter((x) => x.resultado === "entregado" && !x.cargadoEnCourier).length,
+    ultimoDia: m.cartera.porPlazo.rojo,
+    vencidos: m.cartera.porPlazo.vencido,
+    excepciones: excepciones ?? 0,
+  };
   const maxSector = Math.max(1, ...m.porSector.map((s) => s.recibidos));
 
   return (
@@ -112,7 +162,7 @@ export default async function PaginaResumen() {
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="text-3xl font-semibold">Resumen</h1>
-          <p className="text-sm text-tinta-2">Cómo va la operación en los últimos {DIAS_DEL_PERIODO} días.</p>
+          <p className="text-sm text-tinta-2">Cómo va el día y cómo va la operación del mes.</p>
         </div>
         <div className="flex flex-wrap gap-2">
           <Link href="/repartidores" className="rounded-lg bg-acento px-4 py-2.5 text-sm font-semibold text-[#1a0900] hover:bg-acento-oscuro hover:text-white">
@@ -124,6 +174,9 @@ export default async function PaginaResumen() {
         </div>
       </div>
 
+      <Hoy hoy={resumenHoy} alertas={alertas} />
+
+      <h2 className="pt-2 text-xl font-semibold">Últimos {DIAS_DEL_PERIODO} días</h2>
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Dato titulo="Por entregar ahora" valor={String(m.cartera.activos)} />
         <Dato titulo="Entregados" valor={String(m.rendimiento.entregados)} nota={`de ${m.rendimiento.recibidos} recibidos`} />
