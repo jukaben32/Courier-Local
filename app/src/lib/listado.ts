@@ -33,6 +33,7 @@ const COLUMNAS = {
   direccion: ["DIRECCION"],
   cedula: ["CEDULA", "DOCUMENTO", "IDENTIFICACION", "CED"],
   sector: ["SECTOR", "BARRIO"],
+  ciudad: ["CIUDAD", "MUNICIPIO"],
   servicio: ["SERVICIO", "TIENDA"],
   peso: ["PESO"],
 } as const;
@@ -83,6 +84,9 @@ export function extraerEnvios(filas: string[][]): ResultadoListado {
       if (titulo && limpiar(fila[c])) original[titulo] = limpiar(fila[c]);
     });
 
+    // Si el listado trae el sector vacío pero la ciudad es otra (Guayacanes, Ramón Santana...), la ciudad sirve de sector
+    const ciudad = valor("ciudad");
+    const ciudadComoSector = clave(ciudad) === "SAN PEDRO DE MACORIS" ? "" : ciudad;
     const peso = valor("peso");
     envios.push({
       fila: indiceTitulos + i + 2,
@@ -92,7 +96,7 @@ export function extraerEnvios(filas: string[][]): ResultadoListado {
       telefono: normalizarTelefonoRD(valor("telefono")),
       direccion: valor("direccion"),
       cedula: validarCedulaRD(valor("cedula")) ?? "",
-      sectorListado: valor("sector"),
+      sectorListado: valor("sector") || ciudadComoSector,
       contenido: [valor("servicio"), peso && `${peso} kg`].filter(Boolean).join(" · "),
       original,
     });

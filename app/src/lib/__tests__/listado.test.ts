@@ -49,6 +49,18 @@ describe("extraerEnvios", () => {
     expect(envios.map((e) => e.cedula)).toEqual(["02301535932", "", ""]);
   });
 
+  it("si el sector viene vacío, usa la ciudad (menos San Pedro de Macorís, que no es un sector)", () => {
+    const titulos = ["", "CÓDIGO", "CLIENTE", "TELÉFONO", "SECTOR", "CIUDAD"];
+    const { envios } = extraerEnvios([
+      titulos,
+      ["", "SP1", "Ana Pérez", "8295551234", "", "GUAYACANES"],
+      ["", "SP2", "Luis Gómez", "8295551235", "-", "RAMON SANTANA"],
+      ["", "SP3", "Eva Díaz", "8295551236", "", "SAN PEDRO DE MACORÍS"],
+      ["", "SP4", "Rosa Mejía", "8295551237", "MIRAMAR", "GUAYACANES"],
+    ]);
+    expect(envios.map((e) => e.sectorListado)).toEqual(["GUAYACANES", "RAMON SANTANA", "", "MIRAMAR"]);
+  });
+
   it("los '-' cuentan como vacío, se saltan filas vacías y el teléfono inválido queda en null", () => {
     const { envios } = extraerEnvios([
       TITULOS,
