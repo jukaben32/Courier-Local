@@ -1,14 +1,13 @@
 "use client";
 
-import { useRef, useState, useTransition } from "react";
+import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { almacenLocal } from "@/lib/almacenIndexedDB";
 import type { EntregaEnCola } from "@/lib/colaOffline";
 import { enviarEntrega } from "@/lib/enviarEntrega";
 import { fotoABase64 } from "@/lib/imagen";
-import { registrarIntentoFallido } from "../../actions";
+import { MOTIVOS_FALLO } from "@/lib/intentos";
 
-const MOTIVOS = ["No había nadie", "No contesta el teléfono", "No encontré la dirección", "Rechazó el paquete", "Pidió otro día"];
 const ESPERA_UBICACION_MS = 6000;
 
 function obtenerUbicacion(): Promise<{ lat: number; lng: number } | null> {
@@ -37,7 +36,10 @@ export function FormularioEntrega({ paqueteId, guia, nombre }: { paqueteId: stri
   const [nota, setNota] = useState("");
   const [pidiendo, setPidiendo] = useState(false);
   const [solicitada, setSolicitada] = useState(false);
-  const [fallando, iniciarFallo] = useTransition();
+  const [motivoFallo, setMotivoFallo] = useState<string | null>(null);
+  const [fotoFallo, setFotoFallo] = useState<{ base64: string; vista: string } | null>(null);
+  const [registrando, setRegistrando] = useState(false);
+  const inputFotoFallo = useRef<HTMLInputElement>(null);
 
   async function alElegirFoto(e: React.ChangeEvent<HTMLInputElement>) {
     const archivo = e.target.files?.[0];
@@ -47,6 +49,38 @@ export function FormularioEntrega({ paqueteId, guia, nombre }: { paqueteId: stri
     const base64 = await fotoABase64(archivo);
     setFoto({ base64, vista: `data:image/jpeg;base64,${base64}` });
     setCodigoError(null);
+  }
+
+  async function alElegirFotoFallo(e: React.ChangeEvent<HTMLInputElement>) {
+    const archivo = e.target.files?.[0];
+    e.target.value = "";
+    if (!archivo) return;
+    const base64 = await fotoABase64(archivo);
+    setFotoFallo({ base64, vista: `data:image/jpeg;base64,${base64}` });
+  }
+
+  // No se pudo entregar: queda el motivo y, si el repartidor quiere, una foto como evidencia
+  async function registrarFallo() {
+    if (!motivoFallo) return;
+    setRegistrando(true);
+    setError(null);
+    try {
+      const respuesta = await fetch("/api/intento-fallido", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ paqueteId, motivo: motivoFallo, imagen: fotoFallo?.base64 }),
+      });
+      const cuerpo = (await respuesta.json().catch(() => ({}))) as { error?: string };
+      if (!respuesta.ok) {
+        setError(cuerpo.error ?? "No se pudo registrar el intento.");
+        return;
+      }
+      router.replace("/ruta");
+    } catch {
+      setError("Sin conexión. Intenta de nuevo cuando tengas señal.");
+    } finally {
+      setRegistrando(false);
+    }
   }
 
   // La cédula no coincide pero el repartidor cree que corresponde: la oficina decide
@@ -192,11 +226,31 @@ export function FormularioEntrega({ paqueteId, guia, nombre }: { paqueteId: stri
         ) : (
           <div className="space-y-2">
             <p className="text-sm font-medium">¿Qué pasó?</p>
-            {MOTIVOS.map((m) => (
-              <button key={m} type="button" disabled={fallando} onClick={() => iniciarFallo(async () => { const r = await registrarIntentoFallido(paqueteId, m); if (r?.error) setError(r.error); })} className="w-full rounded-lg border border-linea bg-tarjeta py-3 text-sm font-medium disabled:opacity-50">
-                {m}
-              </button>
-            ))}
+            {!motivoFallo ? (
+              MOTIVOS_FALLO.map((m) => (
+                <button key={m} type="button" onClick={() => setMotivoFallo(m)} className="w-full rounded-lg border border-linea bg-tarjeta py-3 text-sm font-medium">
+                  {m}
+                </button>
+              ))
+            ) : (
+              <div className="space-y-3 rounded-xl bg-tarjeta p-4">
+                <p className="text-sm">
+                  Motivo: <b>{motivoFallo}</b>{" "}
+                  <button type="button" onClick={() => setMotivoFallo(null)} className="text-xs text-tinta-2 underline">cambiar</button>
+                </p>
+                <input ref={inputFotoFallo} type="file" accept="image/*" capture="environment" onChange={alElegirFotoFallo} className="hidden" />
+                {fotoFallo && (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={fotoFallo.vista} alt="Foto de evidencia" className="max-h-48 w-full rounded-lg object-contain" />
+                )}
+                <button type="button" onClick={() => inputFotoFallo.current?.click()} className="w-full rounded-lg border-2 border-dashed border-linea py-3 text-sm font-medium text-tinta-2">
+                  {fotoFallo ? "Tomar otra foto" : "Agregar foto de evidencia (opcional)"}
+                </button>
+                <button type="button" onClick={registrarFallo} disabled={registrando} className="w-full rounded-xl bg-tinta py-3 font-semibold text-white disabled:opacity-50">
+                  {registrando ? "Registrando…" : "Registrar que no se pudo entregar"}
+                </button>
+              </div>
+            )}
           </div>
         )}
       </div>

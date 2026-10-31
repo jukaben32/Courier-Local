@@ -30,6 +30,7 @@ const GRUPOS: Grupo[] = [
   {
     titulo: "Entrega",
     enlaces: [
+      { href: "/entregas", texto: "Entregas" },
       { href: "/retiros", texto: "Retiros" },
       { href: "/excepciones", texto: "Excepciones" },
       { href: "/cierre", texto: "Cierre del día" },

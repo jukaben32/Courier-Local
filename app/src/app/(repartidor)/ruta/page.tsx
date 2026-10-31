@@ -1,4 +1,5 @@
 import { diaDeRD } from "@/lib/periodoPago";
+import { bloquearRuta, plazoSubidaMin, pruebaQueBloquea, pruebasPendientes } from "@/lib/pruebasCourier";
 import { etiquetaRango, horaDeColumna } from "@/lib/whatsapp/horas";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
@@ -40,6 +41,7 @@ interface PedidoOficinaDb {
 interface SinSubirDb {
   id: string;
   creado_en: string;
+  motivo_sin_subir: string | null;
   paquetes: { numero_guia: string; nombre_etiqueta: string } | null;
 }
 
@@ -64,7 +66,7 @@ export default async function PaginaRuta() {
       .in("estado", ESTADOS_POR_ENTREGAR),
     supabase
       .from("entregas")
-      .select("id, creado_en, paquetes(numero_guia, nombre_etiqueta)")
+      .select("id, creado_en, motivo_sin_subir, paquetes(numero_guia, nombre_etiqueta)")
       .eq("resultado", "entregado")
       .eq("cargado_en_courier", false)
       .order("creado_en"),
@@ -118,11 +120,41 @@ export default async function PaginaRuta() {
   const sinSubir = (sinSubirDb ?? []) as unknown as SinSubirDb[];
   const pedidos = (pedidosDb ?? []) as unknown as PedidoOficinaDb[];
 
+  // Una prueba atrasada frena la ruta: subirla en el momento es lo que mide el índice de velocidad del courier
+  const plazo = plazoSubidaMin();
+  const pendientes = pruebasPendientes(
+    sinSubir.map((e) => ({
+      id: e.id,
+      resultado: "entregado",
+      creadoEn: e.creado_en,
+      subidoEn: null,
+      cargado: false,
+      repartidor: null,
+      nombre: e.paquetes?.nombre_etiqueta ?? "",
+      guia: e.paquetes?.numero_guia ?? "",
+      verificacion: "verificada" as const,
+      motivoSinSubir: e.motivo_sin_subir,
+    })),
+    new Date(),
+    plazo
+  );
+  const bloqueante = bloquearRuta() ? pruebaQueBloquea(pendientes, plazo) : null;
+
   const pantallasSinSenal = ["/ruta", ...paradas.map((p) => `/entrega/${p.id}`), ...sinSubir.map((e) => `/subir/${e.id}`)];
 
   return (
     <div className="space-y-6">
       <PrepararSinSenal rutas={pantallasSinSenal} />
+      {bloqueante && (
+        <Link href={`/subir/${bloqueante.id}`} className="block rounded-xl border-2 border-rojo bg-rojo/10 p-4">
+          <p className="text-lg font-semibold text-rojo">Sube primero la prueba de {bloqueante.nombre}</p>
+          <p className="text-sm text-tinta-2">
+            Hace {bloqueante.minutos} min que la entregaste. Hasta que la subas al courier no puedes seguir con la ruta: su índice de velocidad cuenta desde que entregas.
+          </p>
+          <span className="mt-3 inline-block rounded-md bg-rojo px-4 py-2 text-sm font-semibold text-white">Subir ahora</span>
+        </Link>
+      )}
+
       {pedidos.length > 0 && (
         <section className="space-y-2">
           <h2 className="text-lg font-semibold">Pedidos a la oficina</h2>
@@ -161,7 +193,7 @@ export default async function PaginaRuta() {
 
       <section>
         <h2 className="mb-3 text-lg font-semibold">Tu ruta de hoy</h2>
-        <RutaOptimizada paradas={paradasRuta} />
+        <RutaOptimizada paradas={paradasRuta} bloqueada={bloqueante !== null} />
       </section>
 
       {paraManana.length > 0 && (

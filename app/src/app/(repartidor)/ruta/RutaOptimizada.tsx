@@ -33,7 +33,7 @@ function formatoDuracion(minutos: number): string {
  * Se recalcula desde donde está el repartidor, así que si se desvía o termina una parada,
  * el orden se ajusta solo.
  */
-export function RutaOptimizada({ paradas }: { paradas: ParadaRuta[] }) {
+export function RutaOptimizada({ paradas, bloqueada = false }: { paradas: ParadaRuta[]; bloqueada?: boolean }) {
   const [origen, setOrigen] = useState<Punto | null>(null);
 
   useEffect(() => {
@@ -92,9 +92,13 @@ export function RutaOptimizada({ paradas }: { paradas: ParadaRuta[] }) {
           <a href={parada.enlaceMapa} target="_blank" rel="noopener noreferrer" className="rounded-lg border border-white/30 py-3 text-center">
             Ir
           </a>
-          <Link href={`/entrega/${parada.id}`} className="rounded-lg bg-acento py-3 text-center text-[#1a0900]">
-            Entregar
-          </Link>
+          {bloqueada ? (
+            <span aria-disabled="true" className="rounded-lg bg-white/15 py-3 text-center text-white/50">Entregar</span>
+          ) : (
+            <Link href={`/entrega/${parada.id}`} className="rounded-lg bg-acento py-3 text-center text-[#1a0900]">
+              Entregar
+            </Link>
+          )}
         </div>
       </div>
 
@@ -127,9 +131,13 @@ export function RutaOptimizada({ paradas }: { paradas: ParadaRuta[] }) {
                     {o.aproximada ? " · sin ubicación" : ""}
                   </span>
                 </span>
-                <Link href={`/entrega/${p.id}`} className="shrink-0 rounded-md border border-linea px-3 py-2 text-sm font-semibold">
-                  Entregar
-                </Link>
+                {bloqueada ? (
+                  <span aria-disabled="true" className="shrink-0 rounded-md border border-linea px-3 py-2 text-sm font-semibold opacity-40">Entregar</span>
+                ) : (
+                  <Link href={`/entrega/${p.id}`} className="shrink-0 rounded-md border border-linea px-3 py-2 text-sm font-semibold">
+                    Entregar
+                  </Link>
+                )}
               </li>
             );
           })}

@@ -74,9 +74,13 @@ export async function POST(request: Request) {
   if (!ESTADOS_ENTREGABLES.includes(paquete.estado)) return falla("Ese paquete ya no se puede entregar.", 409);
 
   const verificacion = await verificarCedulaDelPaquete(datos.imagen, paquete.nombre_etiqueta, "repartidor");
-  if (!verificacion.ok) return falla(verificacion.error, verificacion.status, verificacion.codigo);
-  const cedula = { nombre: verificacion.nombre };
-  const numero = verificacion.numero;
+  // Si la IA no está disponible (sin clave, caída), el repartidor no se detiene: la entrega se guarda
+  // como "pendiente de verificar" con su foto y la oficina la comprueba después. Una cédula ilegible o
+  // de otra persona sí se rechaza aquí, porque eso lo puede resolver el repartidor en la puerta.
+  const diferida = !verificacion.ok && (verificacion.codigo === "sin_ia" || verificacion.codigo === "error_ia");
+  if (!verificacion.ok && !diferida) return falla(verificacion.error, verificacion.status, verificacion.codigo);
+  const numero = verificacion.ok ? verificacion.numero : null;
+  const nombreEnCedula = verificacion.ok ? verificacion.nombre : null;
 
   const ruta = `${usuario.repartidorId}/${paquete.id}/cedula-${Date.now()}.jpg`;
   const { error: errorFoto } = await supabase.storage
@@ -93,9 +97,10 @@ export async function POST(request: Request) {
       resultado: "entregado",
       foto_cedula_destinatario_url: ruta,
       cedula_origen: datos.origen,
-      nombre_en_cedula: cedula.nombre,
-      cedula_leida: formatearCedula(numero),
-      cedula_coincide: true,
+      nombre_en_cedula: nombreEnCedula,
+      cedula_leida: numero ? formatearCedula(numero) : null,
+      cedula_coincide: verificacion.ok ? true : null,
+      verificacion: diferida ? "pendiente" : "verificada",
       receptor_es_destinatario: !datos.recibeOtro,
       receptor_nombre: datos.recibeOtro ? datos.receptorNombre : null,
       ubicacion_lat: datos.lat ?? null,
@@ -112,7 +117,9 @@ export async function POST(request: Request) {
   }
 
   // Ya con la cédula verificada se guarda en la ficha del destinatario (el repartidor no puede editarla él mismo)
-  await createAdminClient().from("destinatarios").update({ cedula: numero }).eq("id", paquete.destinatario_id).is("cedula", null);
+  if (numero) {
+    await createAdminClient().from("destinatarios").update({ cedula: numero }).eq("id", paquete.destinatario_id).is("cedula", null);
+  }
 
   // En el instante de la entrega la prueba sale hacia el courier (si hay un canal configurado), sin
   // hacer esperar al repartidor. Si sale bien, la entrega queda marcada como subida sola.
@@ -122,7 +129,7 @@ export async function POST(request: Request) {
       entregaId: entrega.id,
       guia: paquete.numero_guia,
       nombre: paquete.nombre_etiqueta,
-      cedula: formatearCedula(numero),
+      cedula: numero ? formatearCedula(numero) : "",
       repartidor: usuario.nombre,
       momento,
       fotoBase64: datos.imagen,
@@ -141,7 +148,8 @@ export async function POST(request: Request) {
   return NextResponse.json({
     ok: true,
     entregaId: entrega.id,
-    cedula: formatearCedula(numero),
-    nombre: cedula.nombre,
+    pendienteDeVerificar: diferida,
+    cedula: numero ? formatearCedula(numero) : null,
+    nombre: nombreEnCedula,
   });
 }
