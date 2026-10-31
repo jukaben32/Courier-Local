@@ -72,7 +72,7 @@ export async function guardarPaquete(
   supabase: Supabase,
   datos: DatosPaquete,
   contexto: ContextoAsignacion
-): Promise<{ ok: true; repartidorId: string | null } | { ok: false; error: string }> {
+): Promise<{ ok: true; repartidorId: string | null; paqueteId: string } | { ok: false; error: string }> {
   const { data: repetido } = await supabase.from("paquetes").select("id").eq("numero_guia", datos.guia).maybeSingle();
   if (repetido) return { ok: false, error: `La guía ${datos.guia} ya fue registrada.` };
 
@@ -117,7 +117,7 @@ export async function guardarPaquete(
     cargaActual: contexto.cargaActual,
   });
 
-  const { error: errorPaquete } = await supabase.from("paquetes").insert({
+  const { data: paquete, error: errorPaquete } = await supabase.from("paquetes").insert({
     numero_guia: datos.guia,
     destinatario_id: destinatarioId,
     nombre_etiqueta: datos.nombre,
@@ -126,10 +126,10 @@ export async function guardarPaquete(
     sector_id: datos.sectorId ?? null,
     repartidor_asignado_id: repartidorId,
     ...(datos.importacionId ? { importacion_id: datos.importacionId, datos_listado: datos.datosListado ?? null } : {}),
-  });
-  if (errorPaquete) return { ok: false, error: "No se pudo guardar el paquete. Intenta de nuevo." };
+  }).select("id").single();
+  if (errorPaquete || !paquete) return { ok: false, error: "No se pudo guardar el paquete. Intenta de nuevo." };
 
   // En un listado, el siguiente paquete del mismo sector rotativo ya ve esta carga
   if (repartidorId) contexto.cargaActual[repartidorId] = (contexto.cargaActual[repartidorId] ?? 0) + 1;
-  return { ok: true, repartidorId };
+  return { ok: true, repartidorId, paqueteId: paquete.id };
 }

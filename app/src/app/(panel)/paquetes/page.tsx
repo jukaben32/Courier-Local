@@ -135,6 +135,25 @@ export default async function PaginaPaquetes({
         </form>
       </div>
 
+      <details className="rounded-xl border border-linea bg-tarjeta px-4 py-3 text-sm">
+        <summary className="cursor-pointer font-medium">Descargar historial en Excel</summary>
+        <form action="/api/exportar/paquetes" className="mt-3 flex flex-wrap items-end gap-3">
+          <label className="text-xs text-tinta-2">
+            Recibidos desde
+            <input type="date" name="desde" className="mt-1 block rounded-md border border-linea bg-tarjeta px-2 py-1.5 text-sm text-tinta" />
+          </label>
+          <label className="text-xs text-tinta-2">
+            hasta
+            <input type="date" name="hasta" className="mt-1 block rounded-md border border-linea bg-tarjeta px-2 py-1.5 text-sm text-tinta" />
+          </label>
+          <button type="submit" className="rounded-lg bg-tinta px-4 py-2 text-sm font-semibold text-white hover:bg-tinta/90">Descargar</button>
+        </form>
+        <p className="mt-2 text-xs text-tinta-2">
+          Una fila por paquete con destinatario, teléfono, cédula, dirección, sector, ubicación, horario elegido, repartidor, entrega y prueba.
+          Sin fechas: los últimos 30 días.
+        </p>
+      </details>
+
       {error && <p role="alert" className="text-sm font-medium text-rojo">No se pudo cargar la lista. Recarga la página.</p>}
 
       {/* Celular: una tarjeta por paquete (la tabla de 6 columnas no cabe) */}

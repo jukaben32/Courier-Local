@@ -1,8 +1,17 @@
 import "server-only";
 import { createAdminClient } from "@/lib/supabase/admin";
 
-/** La foto de la cédula se borra a los 90 días (Ley 172-13). */
+/** Días sugeridos por la Ley 172-13. El borrado está APAGADO hasta que se defina (ver diasDeRetencion). */
 export const DIAS_RETENCION_FOTOS = 90;
+
+/**
+ * Días que se conserva la foto de la cédula. Por ahora todo se guarda sin límite: el borrado solo se activa
+ * poniendo FOTOS_CEDULA_DIAS (por ejemplo 90). 0 o vacío = no se borra nada.
+ */
+export function diasDeRetencion(env: Record<string, string | undefined> = process.env): number {
+  const n = Number(env.FOTOS_CEDULA_DIAS);
+  return Number.isFinite(n) && n > 0 ? n : 0;
+}
 const POR_LOTE = 100;
 const MS_POR_DIA = 24 * 60 * 60 * 1000;
 
@@ -46,7 +55,8 @@ async function borrarLote(
  * Borra las fotos de cédula con más de 90 días: el archivo desaparece, la fila y sus datos se conservan
  * (con la marca foto_borrada_en). Se llama junto a las demás tareas programadas.
  */
-export async function borrarFotosVencidas(ahora: Date = new Date(), dias: number = DIAS_RETENCION_FOTOS): Promise<ResumenBorrado> {
+export async function borrarFotosVencidas(ahora: Date = new Date(), dias: number = diasDeRetencion()): Promise<ResumenBorrado> {
+  if (dias <= 0) return { entregas: 0, excepciones: 0 };
   const admin = createAdminClient();
   const limite = limiteDeRetencion(ahora, dias);
   return {

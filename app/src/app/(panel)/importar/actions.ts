@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { leerPrimeraHoja } from "@/lib/excel";
+import { diaDeRD } from "@/lib/periodoPago";
 import { buscarSector, extraerEnvios, type EnvioListado } from "@/lib/listado";
 import { cargarContextoAsignacion, guardarPaquete } from "@/lib/registroPaquete";
 import { esOficina, obtenerUsuarioActual } from "@/lib/sesion";
@@ -75,6 +76,52 @@ async function leerArchivo(formData: FormData): Promise<{ archivo: File; envios:
 }
 
 const MOTIVO_REPETIDA = "Ya fue registrada antes.";
+const POR_LOTE = 200;
+
+interface FilaHistorial {
+  importacion_id: string;
+  fila: number;
+  numero_guia: string | null;
+  paquete_id: string | null;
+  resultado: "importada" | "repetida" | "omitida";
+  motivo: string | null;
+  datos: Record<string, string>;
+}
+
+/**
+ * Guarda para siempre lo que trajo el listado de hoy: el Excel original y cada fila tal como vino
+ * (incluidas las repetidas), para tener la historia de cada paquete en el sistema del courier.
+ * Nunca debe estropear la importación: si algo falla se anota en el registro y se sigue.
+ */
+async function guardarHistorial(supabase: Supabase, importacionId: string, archivo: File, filas: FilaHistorial[]): Promise<void> {
+  try {
+    const ruta = `${diaDeRD(new Date())}/${importacionId}.xlsx`;
+    const { error } = await supabase.storage.from("listados").upload(ruta, new Uint8Array(await archivo.arrayBuffer()), {
+      contentType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    });
+    if (!error) await supabase.from("importaciones").update({ archivo_ruta: ruta }).eq("id", importacionId);
+    else console.error("No se guardó la copia del listado:", error.message);
+
+    // Las repetidas apuntan al paquete que ya existía
+    const guiasRepetidas = filas.filter((f) => f.resultado === "repetida" && f.numero_guia).map((f) => f.numero_guia!);
+    const idPorGuia = new Map<string, string>();
+    for (let i = 0; i < guiasRepetidas.length; i += POR_LOTE) {
+      const { data } = await supabase.from("paquetes").select("id, numero_guia").in("numero_guia", guiasRepetidas.slice(i, i + POR_LOTE));
+      for (const p of (data ?? []) as { id: string; numero_guia: string }[]) idPorGuia.set(p.numero_guia, p.id);
+    }
+    const completas = filas.map((f) => (f.paquete_id || !f.numero_guia ? f : { ...f, paquete_id: idPorGuia.get(f.numero_guia) ?? null }));
+
+    for (let i = 0; i < completas.length; i += POR_LOTE) {
+      const { error: errorFilas } = await supabase.from("listado_filas").insert(completas.slice(i, i + POR_LOTE));
+      if (errorFilas) {
+        console.error("No se guardó el historial del listado:", errorFilas.message);
+        break;
+      }
+    }
+  } catch (error) {
+    console.error("No se guardó el historial del listado:", error instanceof Error ? error.message : "error desconocido");
+  }
+}
 
 /** Por qué una fila no se puede importar (null = se puede). */
 async function motivosDeRechazo(supabase: Supabase, envios: EnvioListado[]): Promise<Map<string, string>> {
@@ -183,16 +230,31 @@ export async function importarListado(formData: FormData): Promise<EstadoImporta
 
   const contexto = await cargarContextoAsignacion(supabase, [...new Set(elegidos.map((x) => x.sectorId).filter(Boolean))]);
   const omitidas: NonNullable<EstadoImportacion["omitidas"]> = [];
+  const historial: FilaHistorial[] = [];
   let importadas = 0;
   let sinRepartidor = 0;
   let yaRegistradas = 0;
 
   // Uno por uno y en orden: así la carga de cada repartidor se reparte bien en los sectores rotativos
   for (const { envio, ajuste, sectorId } of elegidos) {
-    const omitir = (motivo: string) => omitidas.push({ fila: envio.fila, guia: envio.guia, motivo });
+    const registrar = (resultado: FilaHistorial["resultado"], motivoFila: string | null, paqueteId: string | null) =>
+      historial.push({
+        importacion_id: importacion.id,
+        fila: envio.fila,
+        numero_guia: envio.guia || null,
+        paquete_id: paqueteId,
+        resultado,
+        motivo: motivoFila,
+        datos: envio.original,
+      });
+    const omitir = (motivoOmision: string) => {
+      omitidas.push({ fila: envio.fila, guia: envio.guia, motivo: motivoOmision });
+      registrar("omitida", motivoOmision, null);
+    };
     const motivo = motivos.get(`${envio.fila}`);
     if (motivo === MOTIVO_REPETIDA) {
       yaRegistradas++;
+      registrar("repetida", null, null);
       continue;
     }
     if (motivo) {
@@ -225,6 +287,7 @@ export async function importarListado(formData: FormData): Promise<EstadoImporta
       continue;
     }
     importadas++;
+    registrar("importada", null, guardado.paqueteId);
     if (!guardado.repartidorId) sinRepartidor++;
   }
 
@@ -232,6 +295,8 @@ export async function importarListado(formData: FormData): Promise<EstadoImporta
     .from("importaciones")
     .update({ importadas, omitidas: omitidas.length, omitidas_detalle: omitidas })
     .eq("id", importacion.id);
+
+  await guardarHistorial(supabase, importacion.id, leido.archivo, historial);
 
   revalidatePath("/paquetes");
   revalidatePath("/importar");

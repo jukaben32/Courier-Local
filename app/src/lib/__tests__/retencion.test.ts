@@ -3,11 +3,18 @@ import { describe, expect, it, vi } from "vitest";
 vi.mock("server-only", () => ({}));
 vi.mock("@/lib/supabase/admin", () => ({ createAdminClient: () => ({}) }));
 
-import { DIAS_RETENCION_FOTOS, limiteDeRetencion } from "../retencion";
+import { DIAS_RETENCION_FOTOS, borrarFotosVencidas, diasDeRetencion, limiteDeRetencion } from "../retencion";
 
 describe("retención de fotos de cédula", () => {
-  it("se borran a los 90 días", () => {
+  it("la ley sugiere 90 días, pero el borrado está apagado hasta que se defina", () => {
     expect(DIAS_RETENCION_FOTOS).toBe(90);
+    expect(diasDeRetencion({})).toBe(0);
+    expect(diasDeRetencion({ FOTOS_CEDULA_DIAS: "abc" })).toBe(0);
+    expect(diasDeRetencion({ FOTOS_CEDULA_DIAS: "90" })).toBe(90);
+  });
+
+  it("apagado, no toca nada", async () => {
+    expect(await borrarFotosVencidas(new Date(), 0)).toEqual({ entregas: 0, excepciones: 0 });
   });
 
   it("el límite es 90 días antes de ahora", () => {
