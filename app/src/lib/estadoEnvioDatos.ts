@@ -61,6 +61,7 @@ export async function leerEstadoEnvio(supabase: Supabase): Promise<DatosEstadoEn
       .select("telefono, estado, creado_en")
       .eq("direccion", "saliente")
       .eq("tipo", "aviso")
+      .or("proveedor_id.is.null,proveedor_id.not.like.sim-*")
       .gte("creado_en", inicioHoy)
       .order("creado_en", { ascending: false })
       .limit(5000),

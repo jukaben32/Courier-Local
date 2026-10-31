@@ -133,6 +133,8 @@ async function ejecutarTanda(ahora: Date): Promise<ResumenTanda> {
       .select("telefono, sesion, estado, creado_en")
       .eq("direccion", "saliente")
       .in("tipo", ["aviso", "recordatorio"])
+      // Los envíos simulados (versión web de pruebas, sin WhatsApp real) no cuentan como avisados
+      .or("proveedor_id.is.null,proveedor_id.not.like.sim-*")
       .gte("creado_en", hace24h),
   ]);
 
