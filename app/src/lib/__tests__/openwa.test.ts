@@ -221,7 +221,7 @@ describe("respuestas de retiro, otra persona y aclaración", () => {
   });
 
   it("otra persona: exige la cédula del dueño y pide solo lo que falta", () => {
-    expect(textoOtraPersona(true, true)).toContain("ubicación 📍 y la hora");
+    expect(textoOtraPersona(true, true)).toContain("ubicación 📍 (o tu dirección exacta) y la hora");
     expect(textoOtraPersona(true, false)).toContain("Solo nos falta tu ubicación");
     expect(textoOtraPersona(false, true)).toContain("Solo nos falta la hora");
     const completo = textoOtraPersona(false, false);

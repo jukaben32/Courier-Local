@@ -157,8 +157,8 @@ export function textoOtraPersona(faltaUbicacion: boolean, faltaHora: boolean): s
   const base =
     "Sin problema 👍 Quien reciba debe tener la cédula de la persona a nombre de quien viene el paquete " +
     "(la física, o una captura o foto de ella). Sin esa cédula no podemos entregarlo.";
-  if (faltaUbicacion && faltaHora) return `${base} Respóndenos además con tu ubicación 📍 y la hora que te viene bien.`;
-  if (faltaUbicacion) return `${base} Solo nos falta tu ubicación 📍.`;
+  if (faltaUbicacion && faltaHora) return `${base} Respóndenos además con tu ubicación 📍 (o tu dirección exacta) y la hora que te viene bien.`;
+  if (faltaUbicacion) return `${base} Solo nos falta tu ubicación 📍 (o tu dirección exacta).`;
   if (faltaHora) return `${base} Solo nos falta la hora que te viene bien.`;
   return base;
 }

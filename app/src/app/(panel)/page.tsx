@@ -56,6 +56,7 @@ interface FilaPaqueteHoy {
   fecha_recibido: string;
   dia_entrega: string | null;
   ubicacion_entrega_lat: number | null;
+  direccion_entrega_texto: string | null;
   repartidores: { nombre: string } | null;
 }
 interface FilaMensaje {
@@ -121,7 +122,7 @@ export default async function PaginaResumen() {
   // --- Hoy ---
   const hoyRD = diaDeRD(new Date());
   const inicioHoy = new Date(`${hoyRD}T00:00:00-04:00`).toISOString();
-  const columnasHoy = "id, estado, fecha_recibido, dia_entrega, ubicacion_entrega_lat, repartidores:repartidor_asignado_id(nombre)";
+  const columnasHoy = "id, estado, fecha_recibido, dia_entrega, ubicacion_entrega_lat, direccion_entrega_texto, repartidores:repartidor_asignado_id(nombre)";
   const [porEntregarDb, llegaronDb, entregasHoyDb, mensajesHoyDb, { count: excepciones }, enVivo] = await Promise.all([
     leerTodo<FilaPaqueteHoy>((a, b) => supabase.from("paquetes").select(columnasHoy).in("estado", ESTADOS_POR_ENTREGAR).order("id").range(a, b)),
     leerTodo<FilaPaqueteHoy>((a, b) => supabase.from("paquetes").select(columnasHoy).gte("fecha_recibido", inicioHoy).order("id").range(a, b)),
@@ -142,7 +143,7 @@ export default async function PaginaResumen() {
       estado: f.estado,
       fechaRecibido: f.fecha_recibido,
       diaEntrega: f.dia_entrega,
-      tieneUbicacion: f.ubicacion_entrega_lat !== null,
+      tieneUbicacion: f.ubicacion_entrega_lat !== null || !!f.direccion_entrega_texto,
       repartidor: f.repartidores?.nombre ?? null,
     })),
     entregas: entregasHoyDb.map<EntregaHoy>((f) => ({ repartidor: f.repartidores?.nombre ?? null, resultado: f.resultado })),

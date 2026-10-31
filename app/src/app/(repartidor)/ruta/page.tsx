@@ -38,6 +38,7 @@ interface ParadaDb {
   dia_entrega: string | null;
   ubicacion_entrega_lat: number | null;
   ubicacion_entrega_lng: number | null;
+  direccion_entrega_texto: string | null;
   hora_confirmacion: string | null;
   destinatarios: { telefono: string; direccion_texto: string | null } | null;
   sectores: { nombre: string } | null;
@@ -62,7 +63,7 @@ function enlaceMapa(p: ParadaDb): string {
   if (p.ubicacion_entrega_lat !== null && p.ubicacion_entrega_lng !== null) {
     return `https://www.google.com/maps/dir/?api=1&destination=${p.ubicacion_entrega_lat},${p.ubicacion_entrega_lng}&travelmode=motorcycle`;
   }
-  const consulta = `${p.destinatarios?.direccion_texto ?? ""} ${p.sectores?.nombre ?? ""} San Pedro de Macorís`;
+  const consulta = `${p.direccion_entrega_texto ?? p.destinatarios?.direccion_texto ?? ""} ${p.sectores?.nombre ?? ""} San Pedro de Macorís`;
   return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(consulta.trim())}`;
 }
 
@@ -74,7 +75,7 @@ export default async function PaginaRuta() {
     supabase
       .from("paquetes")
       .select(
-        "id, numero_guia, nombre_etiqueta, estado, voluminoso, ventana_horaria, hora_preferida, hora_hasta, dia_entrega, ubicacion_entrega_lat, ubicacion_entrega_lng, hora_confirmacion, destinatarios(telefono, direccion_texto), sectores(nombre)"
+        "id, numero_guia, nombre_etiqueta, estado, voluminoso, ventana_horaria, hora_preferida, hora_hasta, dia_entrega, ubicacion_entrega_lat, ubicacion_entrega_lng, direccion_entrega_texto, hora_confirmacion, destinatarios(telefono, direccion_texto), sectores(nombre)"
       )
       .in("estado", ESTADOS_POR_ENTREGAR),
     supabase
@@ -149,7 +150,7 @@ export default async function PaginaRuta() {
     return {
       id: p.id,
       nombre: p.nombre_etiqueta,
-      direccion: p.destinatarios?.direccion_texto ?? null,
+      direccion: p.direccion_entrega_texto ?? p.destinatarios?.direccion_texto ?? null,
       sector: p.sectores?.nombre ?? null,
       guia: p.numero_guia,
       franja: horaExacta !== null ? BASE_HORA_EXACTA + horaExacta : (ORDEN_FRANJA[p.ventana_horaria ?? ""] ?? SIN_HORARIO),
@@ -283,7 +284,7 @@ export default async function PaginaRuta() {
                   <p className="truncate font-medium">{p.nombre_etiqueta}</p>
                   <p className="text-xs text-tinta-2">
                     {p.sectores?.nombre ?? "Sin sector"}
-                    {p.destinatarios?.direccion_texto ? ` · ${p.destinatarios.direccion_texto}` : ""}
+                    {p.direccion_entrega_texto ?? p.destinatarios?.direccion_texto ? ` · ${p.direccion_entrega_texto ?? p.destinatarios?.direccion_texto}` : ""}
                   </p>
                   <p className="mt-1 text-xs">
                     <span className={aviso === "fallido" ? "font-semibold text-rojo" : "text-tinta-2"}>{TEXTO_AVISO[aviso ?? "ninguno"]}</span>

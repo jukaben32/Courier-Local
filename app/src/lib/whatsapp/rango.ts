@@ -14,7 +14,7 @@ export interface RangoHoras {
   dia: "hoy" | "manana";
 }
 
-function normalizar(texto: string): string {
+export function normalizar(texto: string): string {
   return texto
     .normalize("NFD")
     .replace(/[̀-ͯ]/g, "")

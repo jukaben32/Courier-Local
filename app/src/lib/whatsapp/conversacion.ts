@@ -45,7 +45,11 @@ interface PaqueteAbierto {
   ventana_horaria: string | null;
   hora_preferida: string | null;
   ubicacion_entrega_lat: number | null;
+  direccion_entrega_texto: string | null;
 }
+
+/** La ubicación puede ser el pin o la dirección escrita por el cliente. */
+const tieneUbicacion = (p: PaqueteAbierto) => p.ubicacion_entrega_lat !== null || !!p.direccion_entrega_texto;
 
 async function paquetesDelCliente(admin: Admin, telefono: string, estados: string[]): Promise<PaqueteAbierto[]> {
   const { data: personas } = await admin.from("destinatarios").select("id").eq("telefono", telefono);
@@ -54,7 +58,7 @@ async function paquetesDelCliente(admin: Admin, telefono: string, estados: strin
 
   const { data } = await admin
     .from("paquetes")
-    .select("id, estado, nombre_etiqueta, ventana_horaria, hora_preferida, ubicacion_entrega_lat")
+    .select("id, estado, nombre_etiqueta, ventana_horaria, hora_preferida, ubicacion_entrega_lat, direccion_entrega_texto")
     .in("destinatario_id", ids)
     .in("estado", estados)
     .order("fecha_recibido");
@@ -207,7 +211,7 @@ export async function procesarEntrante(
   }
 
   if (entrante.tipo === "ubicacion") {
-    const yaTeniaUbicacion = abiertos.some((p) => p.ubicacion_entrega_lat !== null);
+    const yaTeniaUbicacion = abiertos.some(tieneUbicacion);
     await admin
       .from("paquetes")
       .update({
@@ -236,6 +240,18 @@ export async function procesarEntrante(
   // Solo se pueden coordinar los paquetes que aún no salen en ruta ni están en retiro
   // Lo que el cliente elige aplica a los paquetes que esperan su respuesta; los que ya tienen horario
   // confirmado solo cambian si no queda ninguno esperando (el cliente está reprogramando).
+  if (entrante.tipo === "direccion") {
+    const yaTeniaUbicacion = abiertos.some(tieneUbicacion);
+    await admin
+      .from("paquetes")
+      .update({ direccion_entrega_texto: entrante.texto.trim().slice(0, 500), ubicacion_entrega_en: new Date().toISOString() })
+      .in("id", abiertos.map((p) => p.id));
+    // Igual que con el pin: solo se responde si ya eligió hora y es la primera vez que da su ubicación
+    const confirmados = abiertos.filter((p) => p.estado === "confirmado");
+    if (confirmados.length > 0 && !yaTeniaUbicacion) await confirmarCoordinacion(admin, telefono, confirmados.map((p) => p.id));
+    return;
+  }
+
   const coordinables = abiertos.filter((p) => ESTADOS_COORDINABLES.includes(p.estado));
   const esperando = coordinables.filter((p) => ESTADOS_ESPERANDO.includes(p.estado));
   const objetivo = (esperando.length > 0 ? esperando : coordinables).map((p) => p.id);
@@ -256,7 +272,7 @@ export async function procesarEntrante(
       })
       .in("id", objetivo);
     if (usaOpenWA()) {
-      if (abiertos.some((p) => p.ubicacion_entrega_lat !== null)) await confirmarCoordinacion(admin, telefono, objetivo);
+      if (abiertos.some(tieneUbicacion)) await confirmarCoordinacion(admin, telefono, objetivo);
       return;
     }
     await pedirUbicacion(admin, telefono, primero);
@@ -282,7 +298,7 @@ export async function procesarEntrante(
       })
       .in("id", objetivo);
     if (usaOpenWA()) {
-      if (!mismaHora && abiertos.some((p) => p.ubicacion_entrega_lat !== null)) await confirmarCoordinacion(admin, telefono, objetivo);
+      if (!mismaHora && abiertos.some(tieneUbicacion)) await confirmarCoordinacion(admin, telefono, objetivo);
       return;
     }
     await pedirUbicacion(admin, telefono, primero);
@@ -291,7 +307,7 @@ export async function procesarEntrante(
 
   if (entrante.tipo === "rango") {
     // Ya quedó coordinado (hora y ubicación): cualquier cambio lo arregla con el repartidor, el bot no insiste
-    if (abiertos.some((p) => p.estado === "confirmado" && p.ubicacion_entrega_lat !== null)) return;
+    if (abiertos.some((p) => p.estado === "confirmado" && tieneUbicacion(p))) return;
 
     await admin
       .from("paquetes")
@@ -304,7 +320,7 @@ export async function procesarEntrante(
         hora_confirmacion: new Date().toISOString(),
       })
       .in("id", objetivo);
-    if (abiertos.some((p) => p.ubicacion_entrega_lat !== null)) await confirmarCoordinacion(admin, telefono, objetivo);
+    if (abiertos.some(tieneUbicacion)) await confirmarCoordinacion(admin, telefono, objetivo);
     return;
   }
 
@@ -320,7 +336,7 @@ export async function procesarEntrante(
     } else if (entrante.accion === ACCION_OTRA_PERSONA) {
       if (usaOpenWA()) {
         // Un solo mensaje: la cédula que debe llevar quien reciba y, si aún falta, la ubicación u hora
-        const faltaUbicacion = !abiertos.some((p) => p.ubicacion_entrega_lat !== null);
+        const faltaUbicacion = !abiertos.some(tieneUbicacion);
         const faltaHora = !abiertos.some((p) => p.estado === "confirmado");
         await responder(admin, telefono, primero, { tipo: "respuesta", ...texto(textoOtraPersona(faltaUbicacion, faltaHora)) });
         return;

@@ -25,7 +25,7 @@ export async function cargarEnVivo(supabase: Supabase): Promise<{ filas: FilaEnV
   const { data: paquetesBD } = telefonos.length
     ? await supabase
         .from("paquetes")
-        .select("numero_guia, nombre_etiqueta, estado, ventana_horaria, hora_preferida, hora_hasta, dia_entrega, ubicacion_entrega_lat, sectores(nombre), destinatarios!inner(telefono)")
+        .select("numero_guia, nombre_etiqueta, estado, ventana_horaria, hora_preferida, hora_hasta, dia_entrega, ubicacion_entrega_lat, direccion_entrega_texto, sectores(nombre), destinatarios!inner(telefono)")
         .in("destinatarios.telefono", telefonos)
         .order("fecha_recibido", { ascending: false })
     : { data: [] };
@@ -39,6 +39,7 @@ export async function cargarEnVivo(supabase: Supabase): Promise<{ filas: FilaEnV
     hora_hasta: string | null;
     dia_entrega: string | null;
     ubicacion_entrega_lat: number | null;
+    direccion_entrega_texto: string | null;
     sectores: { nombre: string } | null;
     destinatarios: { telefono: string };
   };
@@ -51,7 +52,7 @@ export async function cargarEnVivo(supabase: Supabase): Promise<{ filas: FilaEnV
     hora_preferida: p.hora_preferida,
     hora_hasta: p.hora_hasta,
     dia_entrega: p.dia_entrega,
-    tiene_ubicacion: p.ubicacion_entrega_lat !== null,
+    tiene_ubicacion: p.ubicacion_entrega_lat !== null || !!p.direccion_entrega_texto,
     sector: p.sectores?.nombre ?? null,
   }));
   const franjas = Object.fromEntries((franjasBD ?? []).map((f: { codigo: string; nombre: string }) => [f.codigo, f.nombre]));

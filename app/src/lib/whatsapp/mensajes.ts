@@ -60,6 +60,8 @@ export type Entrante =
   // Versión OpenWA: el cliente escribe entre qué hora y qué hora le viene bien (24 h)
   | { telefono: string; tipo: "rango"; desde: number; hasta: number; dia: "hoy" | "manana" }
   | { telefono: string; tipo: "ubicacion"; lat: number; lng: number }
+  // Versión OpenWA: el cliente escribe su dirección en vez de mandar el pin
+  | { telefono: string; tipo: "direccion"; texto: string }
   | { telefono: string; tipo: "texto"; texto: string };
 
 interface MensajeYCloud {

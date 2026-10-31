@@ -66,7 +66,7 @@ function avisoLlegada(p: string[], ctx: Contexto): MensajeConMenu {
   const texto = [
     cabecera,
     "Para llevártelo, respóndenos:",
-    "📍 Tu ubicación (toca el clip 📎 > Ubicación > Enviar tu ubicación actual)",
+    "📍 Tu ubicación (toca el clip 📎 > Ubicación > Enviar tu ubicación actual) o, si no puedes, escríbenos tu dirección exacta con una referencia",
     "🕐 Entre qué hora y qué hora te viene bien recibirlo. Por ejemplo: *entre 2 y 4 de la tarde*",
     "Si tu casa es difícil de encontrar, mándanos también una foto o video.",
     `Guarda este número para tus próximos avisos. ${PIE_SALIDA}`,

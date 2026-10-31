@@ -1,3 +1,4 @@
+import { pareceDireccion, traeHoraExplicita } from "@/lib/whatsapp/direccion";
 import { NextResponse, after } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { procesarEntrante } from "@/lib/whatsapp/conversacion";
@@ -92,6 +93,12 @@ async function procesarEvento(admin: Admin, evento: EventoOpenWA, opciones: Opci
   // Audio, documento, etc.: no hay respuesta automática; queda anotado para que la oficina lo atienda
   if (evento.adjunto) return anotarSinRespuesta(admin, evento.telefono, `[${evento.adjunto}]`);
   if (!evento.texto) return;
+
+  // Mucha gente no sabe mandar el pin: una dirección escrita con referencias también vale como ubicación
+  if (pareceDireccion(evento.texto)) {
+    await procesarEntrante({ telefono: evento.telefono, tipo: "direccion", texto: evento.texto }, { soloLoEntendido: true, textoOriginal: evento.texto });
+    if (!traeHoraExplicita(evento.texto)) return;
+  }
 
   const interpretacion = interpretarRespuestaTexto(
     evento.texto,
