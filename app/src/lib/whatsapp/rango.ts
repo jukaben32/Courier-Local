@@ -24,6 +24,16 @@ function normalizar(texto: string): string {
     .trim();
 }
 
+// "de 1 a dos", "a las tres": la gente escribe las horas con letras
+const NUMEROS_EN_LETRAS: Record<string, string> = {
+  una: "1", uno: "1", dos: "2", tres: "3", cuatro: "4", cinco: "5", seis: "6",
+  siete: "7", ocho: "8", nueve: "9", diez: "10", once: "11", doce: "12",
+};
+
+function conNumeros(texto: string): string {
+  return texto.replace(/\b(una|uno|dos|tres|cuatro|cinco|seis|siete|ocho|nueve|diez|once|doce)\b/g, (palabra) => NUMEROS_EN_LETRAS[palabra]);
+}
+
 const PARTE_MANANA = /\b(?:por|en|de|durante|a) la manana\b/g;
 const RANGO = /\b(\d{1,2})(?::(\d{2}))?\s*(am|pm)?\s*(?:a|y|hasta|-)\s*(?:las\s+)?(\d{1,2})(?::(\d{2}))?\s*(am|pm)?\b/;
 
@@ -33,7 +43,7 @@ const RANGO = /\b(\d{1,2})(?::(\d{2}))?\s*(am|pm)?\s*(?:a|y|hasta|-)\s*(?:las\s+
  */
 export function interpretarRango(texto: string, ahora: Date, config: ConfigHoras = CONFIG_HORAS): RangoHoras | null {
   // "por la mañana" es una parte del día; "mañana" suelta es el día siguiente
-  const original = normalizar(texto);
+  const original = conNumeros(normalizar(texto));
   const t = original.replace(PARTE_MANANA, " enlamanana ");
   const enLaManana = t !== original;
   let dia: RangoHoras["dia"] = /\bmanana\b/.test(t) ? "manana" : "hoy";
@@ -66,7 +76,7 @@ export function interpretarRango(texto: string, ahora: Date, config: ConfigHoras
     desde = 12;
     hasta = 14;
   } else {
-    const unica = interpretarHora(texto, config);
+    const unica = interpretarHora(conNumeros(normalizar(texto)), config);
     if (unica.hora !== null && !unica.fuera) {
       desde = unica.hora;
       hasta = unica.hora + 1;

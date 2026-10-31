@@ -29,6 +29,14 @@ describe("interpretarRango", () => {
     expect(rango(texto)).toEqual({ desde, hasta, dia: "hoy" });
   });
 
+  it("entiende los números escritos con letras", () => {
+    expect(rango("1 a dos de la tarde porfa")).toEqual({ desde: 13, hasta: 14, dia: "hoy" });
+    expect(rango("entre las dos y las cuatro")).toEqual({ desde: 14, hasta: 16, dia: "hoy" });
+    expect(rango("a las tres")).toEqual({ desde: 15, hasta: 16, dia: "hoy" });
+    expect(rango("de once a doce de la mañana")).toEqual({ desde: 11, hasta: 12, dia: "hoy" });
+    expect(rango("mi esposo recibe dos paquetes")).toBeNull();
+  });
+
   it("una hora suelta es un bloque de una hora", () => {
     expect(rango("a las 4")).toEqual({ desde: 16, hasta: 17, dia: "hoy" });
     expect(rango("4:30 pm")).toEqual({ desde: 16, hasta: 17, dia: "hoy" });
