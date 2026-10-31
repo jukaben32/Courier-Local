@@ -13,6 +13,8 @@ export interface DatosPaquete {
   /** Ya normalizado a 10 dígitos de RD. */
   telefono: string;
   direccion?: string;
+  /** Cédula del destinatario (11 dígitos válidos), si se conoce. */
+  cedula?: string;
   sectorId?: string;
   contenido?: string;
   voluminoso: boolean;
@@ -75,7 +77,7 @@ export async function guardarPaquete(
   if (repetido) return { ok: false, error: `La guía ${datos.guia} ya fue registrada.` };
 
   // Una persona = nombre + teléfono (una familia puede compartir teléfono)
-  const { data: mismosTelefono } = await supabase.from("destinatarios").select("id, nombre").eq("telefono", datos.telefono);
+  const { data: mismosTelefono } = await supabase.from("destinatarios").select("id, nombre, cedula").eq("telefono", datos.telefono);
   const clave = (nombre: string) => nombre.trim().toLowerCase();
   const existente = (mismosTelefono ?? []).find((d) => clave(d.nombre) === clave(datos.nombre));
 
@@ -85,6 +87,8 @@ export async function guardarPaquete(
     const cambios = {
       ...(datos.direccion ? { direccion_texto: datos.direccion } : {}),
       ...(datos.sectorId ? { sector_id: datos.sectorId } : {}),
+      // Una cédula ya verificada en una entrega no se pisa con la del listado
+      ...(datos.cedula && !existente.cedula ? { cedula: datos.cedula } : {}),
     };
     if (Object.keys(cambios).length > 0) {
       await supabase.from("destinatarios").update(cambios).eq("id", destinatarioId);
@@ -96,6 +100,7 @@ export async function guardarPaquete(
         nombre: datos.nombre,
         telefono: datos.telefono,
         direccion_texto: datos.direccion ?? null,
+        cedula: datos.cedula ?? null,
         sector_id: datos.sectorId ?? null,
       })
       .select("id")

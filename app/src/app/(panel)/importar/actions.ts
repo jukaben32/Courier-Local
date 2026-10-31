@@ -18,6 +18,7 @@ export interface FilaRevisada {
   nombre: string;
   telefono: string;
   direccion: string;
+  cedula: string;
   sectorListado: string;
   /** Sector de Courier Local que se reconoció ("" si no se reconoció). */
   sectorId: string;
@@ -127,6 +128,7 @@ export async function revisarListado(_anterior: EstadoRevision, formData: FormDa
       nombre: e.nombre,
       telefono: e.telefono ?? e.telefonoOriginal,
       direccion: e.direccion,
+      cedula: e.cedula,
       sectorListado: e.sectorListado,
       sectorId: buscarSector(e.sectorListado, sectores) ?? "",
       contenido: e.contenido,
@@ -209,6 +211,7 @@ export async function importarListado(formData: FormData): Promise<EstadoImporta
         nombre: envio.nombre,
         telefono: envio.telefono!,
         direccion: envio.direccion || undefined,
+        cedula: envio.cedula || undefined,
         sectorId: sectorId || undefined,
         contenido: envio.contenido || undefined,
         voluminoso: ajuste?.voluminoso ?? false,

@@ -1,3 +1,4 @@
+import { validarCedulaRD } from "./cedula";
 import { normalizarTelefonoRD } from "./telefono";
 
 /** Un envío del "Listado de envíos en la oficina", ya con los datos que usa Courier Local. */
@@ -10,6 +11,8 @@ export interface EnvioListado {
   /** 10 dígitos de RD, o null si el teléfono del listado no es válido. */
   telefono: string | null;
   direccion: string;
+  /** Cédula del destinatario (11 dígitos válidos) si el listado la trae; "" si no la trae o no es válida. */
+  cedula: string;
   /** El sector tal como viene en el listado ("COLINA I", "AZUL"...). */
   sectorListado: string;
   contenido: string;
@@ -28,6 +31,7 @@ const COLUMNAS = {
   nombre: ["CLIENTE", "NOMBRE", "DESTINATARIO"],
   telefono: ["TELEFONO", "CELULAR", "TEL"],
   direccion: ["DIRECCION"],
+  cedula: ["CEDULA", "DOCUMENTO", "IDENTIFICACION", "CED"],
   sector: ["SECTOR", "BARRIO"],
   servicio: ["SERVICIO", "TIENDA"],
   peso: ["PESO"],
@@ -87,6 +91,7 @@ export function extraerEnvios(filas: string[][]): ResultadoListado {
       telefonoOriginal: valor("telefono"),
       telefono: normalizarTelefonoRD(valor("telefono")),
       direccion: valor("direccion"),
+      cedula: validarCedulaRD(valor("cedula")) ?? "",
       sectorListado: valor("sector"),
       contenido: [valor("servicio"), peso && `${peso} kg`].filter(Boolean).join(" · "),
       original,

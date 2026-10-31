@@ -222,6 +222,7 @@ export function ImportarListado({ sectores }: { sectores: SectorOpcion[] }) {
                         <td className="px-3 py-2">
                           <div className="font-medium">{f.nombre || "—"}</div>
                           <div className="text-xs text-tinta-2">{f.telefono}</div>
+                          {f.cedula && <div className="text-xs text-tinta-2">Cédula {f.cedula}</div>}
                           {f.motivo && <div className="text-xs font-medium text-rojo">{f.motivo}</div>}
                         </td>
                         <td className="max-w-64 px-3 py-2 text-xs">{f.direccion || "—"}</td>

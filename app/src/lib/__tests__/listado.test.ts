@@ -22,6 +22,7 @@ describe("extraerEnvios", () => {
         telefonoOriginal: "8494052160",
         telefono: "8494052160",
         direccion: "Calle julio anglada casa #12",
+        cedula: "",
         sectorListado: "BUENOS AIRES",
         contenido: "TEMU · 2.06 kg",
         original: {
@@ -36,6 +37,16 @@ describe("extraerEnvios", () => {
         },
       },
     ]);
+  });
+
+  it("si el listado trae una columna de cédula la toma, y solo si es válida", () => {
+    const { envios } = extraerEnvios([
+      [...TITULOS, "CÉDULA"],
+      [...fila("SP1", "TEMU", "Ana Pérez", "1", "8295551234", "Calle 1", "AZUL", "SPM"), "023-0153593-2"],
+      [...fila("SP2", "TEMU", "Luis Gómez", "1", "8295551235", "Calle 2", "AZUL", "SPM"), "123-4567890-1"],
+      fila("SP3", "TEMU", "Eva Díaz", "1", "8295551236", "Calle 3", "AZUL", "SPM"),
+    ]);
+    expect(envios.map((e) => e.cedula)).toEqual(["02301535932", "", ""]);
   });
 
   it("los '-' cuentan como vacío, se saltan filas vacías y el teléfono inválido queda en null", () => {

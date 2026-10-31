@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
+import { validarCedulaRD } from "@/lib/cedula";
 import { verificarCedulaDelPaquete } from "@/lib/verificarCedula";
 import { esOficina, obtenerUsuarioActual } from "@/lib/sesion";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -61,22 +62,34 @@ export async function reintentarVerificacion(entregaId: string): Promise<Resulta
   return { ok: "Verificada: la cédula coincide con el paquete." };
 }
 
-/** La oficina mira la foto y da la cédula por buena. Queda anotado quién la aprobó. */
-export async function aprobarVerificacion(entregaId: string): Promise<ResultadoVerificacion> {
+/**
+ * La oficina mira la foto y da la cédula por buena. Queda anotado quién la aprobó. Si escribe el número
+ * (opcional), se valida y se guarda en la ficha del cliente para llenar la columna Cédula.
+ */
+export async function aprobarVerificacion(entregaId: string, cedulaEscrita?: string): Promise<ResultadoVerificacion> {
   const usuario = await obtenerUsuarioActual();
   if (!usuario || !esOficina(usuario) || !Id.safeParse(entregaId).success) return { error: "No tienes permiso." };
-  if (!(await entregaPendiente(entregaId))) return { error: "Esa entrega ya no está pendiente." };
+  const entrega = await entregaPendiente(entregaId);
+  if (!entrega) return { error: "Esa entrega ya no está pendiente." };
+
+  const escrita = cedulaEscrita?.trim();
+  const numero = escrita ? validarCedulaRD(escrita) : null;
+  if (escrita && !numero) return { error: "Esa cédula no es válida: revisa los 11 dígitos." };
 
   const { error } = await createAdminClient()
     .from("entregas")
     .update({
       verificacion: "verificada",
       cedula_coincide: true,
+      ...(numero ? { cedula_leida: numero } : {}),
       excepcion_motivo: "Verificada a mano por la oficina (la lectura automática no estaba disponible)",
       excepcion_autorizada_por: usuario.id,
     })
     .eq("id", entregaId);
   if (error) return { error: "No se pudo guardar. Intenta de nuevo." };
+  if (numero && entrega.paquetes) {
+    await createAdminClient().from("destinatarios").update({ cedula: numero }).eq("id", entrega.paquetes.destinatario_id).is("cedula", null);
+  }
 
   revalidatePath("/entregas");
   return { ok: "Aprobada." };
