@@ -5,6 +5,7 @@ import { enviarPorWhatsApp } from "@/lib/whatsapp/cliente";
 import { cuerpoTexto } from "@/lib/whatsapp/envio";
 import { configHorasDesdeEntorno, sesionesOpenWA } from "@/lib/whatsapp/proveedor";
 import { etiquetaRango } from "@/lib/whatsapp/horas";
+import { puedeConversar, rutasPermitidas } from "@/lib/whatsapp/soloRutas";
 import { textoAclararHora } from "@/lib/whatsapp/plantillas";
 import { interpretarRespuestaTexto, type OpcionMenu } from "@/lib/whatsapp/menu";
 import {
@@ -48,6 +49,14 @@ async function procesarEvento(admin: Admin, evento: EventoOpenWA): Promise<void>
   // para hablar con gente, y esas conversaciones no deben tocarse ni guardarse.
   const { data: menu } = await admin.from("menus_whatsapp").select("opciones, sesion").eq("telefono", evento.telefono).maybeSingle();
   if (!menu) return;
+
+  // Con ENVIO_SOLO_REPARTIDORES el bot solo conversa con los clientes de esas rutas: a los demás se les
+  // guarda el mensaje (se ve en "En vivo") pero no se les contesta.
+  const permitidas = await rutasPermitidas();
+  if (permitidas && !(await puedeConversar(evento.telefono, permitidas.ids))) {
+    const que = evento.texto ?? (evento.adjunto ? `[${evento.adjunto}]` : evento.ubicacion ? "📍 Ubicación" : "—");
+    return anotarSinRespuesta(admin, evento.telefono, que);
+  }
 
   // Las respuestas se tratan igual lleguen por la cuenta que lleguen. Solo se anota por cuál escribió
   // el cliente, para contestarle desde esa misma cuenta.

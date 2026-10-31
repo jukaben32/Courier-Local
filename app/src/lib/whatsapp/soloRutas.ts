@@ -20,6 +20,38 @@ export function repartidoresQueCoinciden(repartidores: { id: string; nombre: str
     .map((r) => r.id);
 }
 
+/**
+ * ENVIO_SOLO_DESDE=2026-10-31: solo se avisa a los paquetes recibidos desde ese día (hora de RD), es decir,
+ * los del listado de hoy. Devuelve el ISO del comienzo de ese día, o null si no está puesta o no es válida.
+ */
+export function desdeFecha(env: Record<string, string | undefined> = process.env): string | null {
+  const dia = env.ENVIO_SOLO_DESDE?.trim() ?? "";
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dia)) return null;
+  const inicio = new Date(`${dia}T00:00:00-04:00`);
+  return Number.isNaN(inicio.getTime()) ? null : inicio.toISOString();
+}
+
+const ESTADOS_ABIERTOS = ["recibido", "notificado", "confirmado", "en_ruta", "intento_fallido", "retiro_oficina"];
+
+/**
+ * Con el filtro de rutas puesto, el bot solo conversa con quien tiene un paquete abierto con uno de esos
+ * repartidores. A los demás se les guarda el mensaje pero no se les contesta.
+ */
+export async function puedeConversar(telefono: string, idsRepartidores: string[]): Promise<boolean> {
+  if (idsRepartidores.length === 0) return false;
+  const admin = createAdminClient();
+  const { data: personas } = await admin.from("destinatarios").select("id").eq("telefono", telefono);
+  const ids = (personas ?? []).map((p: { id: string }) => p.id);
+  if (ids.length === 0) return false;
+  const { count } = await admin
+    .from("paquetes")
+    .select("id", { count: "exact", head: true })
+    .in("destinatario_id", ids)
+    .in("estado", ESTADOS_ABIERTOS)
+    .in("repartidor_asignado_id", idsRepartidores);
+  return (count ?? 0) > 0;
+}
+
 export interface RutasPermitidas {
   /** Ids permitidos. */
   ids: string[];

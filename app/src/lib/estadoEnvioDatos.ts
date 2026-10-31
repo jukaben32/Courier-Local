@@ -3,7 +3,7 @@ import { evaluarEstadoEnvio, type EstadoEnvio, type SesionEstado } from "./estad
 import { diaDeRD } from "./periodoPago";
 import type { createClient } from "./supabase/server";
 import { configsOpenWA, ritmoDesdeEntorno, usaOpenWA } from "./whatsapp/proveedor";
-import { rutasPermitidas } from "./whatsapp/soloRutas";
+import { desdeFecha, rutasPermitidas } from "./whatsapp/soloRutas";
 
 type Supabase = Awaited<ReturnType<typeof createClient>>;
 
@@ -14,6 +14,8 @@ export interface DatosEstadoEnvio {
   avisadosHoy: number;
   /** Nombres de los repartidores a los que se limita el envío, o null si se avisa a todos. */
   soloRutas: string[] | null;
+  /** Día desde el que se avisa (YYYY-MM-DD), si el envío se limita al listado de hoy. */
+  soloDesde: string | null;
 }
 
 /** Cada cuenta de WhatsApp tal como la ve OpenWA. null si OpenWA no responde. */
@@ -48,7 +50,9 @@ export async function leerEstadoEnvio(supabase: Supabase): Promise<DatosEstadoEn
   const inicioHoy = new Date(`${diaDeRD(new Date())}T00:00:00-04:00`).toISOString();
 
   const permitidas = await rutasPermitidas();
-  const consultaCola = supabase.from("paquetes").select("id", { count: "exact", head: true }).eq("estado", "recibido");
+  let consultaCola = supabase.from("paquetes").select("id", { count: "exact", head: true }).eq("estado", "recibido");
+  const desde = desdeFecha();
+  if (desde) consultaCola = consultaCola.gte("fecha_recibido", desde);
 
   const [sesiones, { data: avisos }, { count: enCola }] = await Promise.all([
     leerSesiones(),
@@ -77,5 +81,5 @@ export async function leerEstadoEnvio(supabase: Supabase): Promise<DatosEstadoEn
     ahora: new Date(),
     ritmo: ritmoDesdeEntorno(),
   });
-  return { estado, sesiones, enCola: enCola ?? 0, avisadosHoy, soloRutas: permitidas ? permitidas.nombres : null };
+  return { estado, sesiones, enCola: enCola ?? 0, avisadosHoy, soloRutas: permitidas ? permitidas.nombres : null, soloDesde: desde ? (process.env.ENVIO_SOLO_DESDE ?? "").trim() : null };
 }

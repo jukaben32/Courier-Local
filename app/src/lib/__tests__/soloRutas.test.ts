@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 vi.mock("server-only", () => ({}));
 vi.mock("@/lib/supabase/admin", () => ({ createAdminClient: () => ({}) }));
 
-import { filtrosDeRutas, repartidoresQueCoinciden } from "../whatsapp/soloRutas";
+import { desdeFecha, filtrosDeRutas, repartidoresQueCoinciden } from "../whatsapp/soloRutas";
 
 const REPARTIDORES = [
   { id: "a1", nombre: "Heimi Santana" },
@@ -11,6 +11,18 @@ const REPARTIDORES = [
   { id: "a3", nombre: "Julius Manuel Perez" },
   { id: "a4", nombre: "Jaime Ernesto Tolentino Alvarado" },
 ];
+
+describe("solo el listado de hoy", () => {
+  it("sin la variable o con una fecha inválida no hay filtro", () => {
+    expect(desdeFecha({})).toBeNull();
+    expect(desdeFecha({ ENVIO_SOLO_DESDE: "ayer" })).toBeNull();
+    expect(desdeFecha({ ENVIO_SOLO_DESDE: "2026-13-45" })).toBeNull();
+  });
+
+  it("el día empieza a la medianoche de República Dominicana", () => {
+    expect(desdeFecha({ ENVIO_SOLO_DESDE: "2026-10-31" })).toBe("2026-10-31T04:00:00.000Z");
+  });
+});
 
 describe("filtro de rutas para los avisos", () => {
   it("sin la variable no hay filtro", () => {

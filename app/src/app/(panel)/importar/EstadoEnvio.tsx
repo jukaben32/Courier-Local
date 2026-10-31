@@ -21,7 +21,7 @@ export function EstadoEnvio({ datos }: { datos: DatosEstadoEnvio }) {
 
       {datos.soloRutas && (
         <p className="rounded-lg border border-ambar/50 bg-ambar/10 px-3 py-2 text-sm font-medium text-[#8a6200]">
-          Los avisos se limitan a la ruta de: {datos.soloRutas.length ? datos.soloRutas.join(", ") : "nadie (el filtro no coincide con ningún repartidor)"}. Los demás paquetes quedan sin avisar.
+          Los avisos se limitan a la ruta de: {datos.soloRutas.length ? datos.soloRutas.join(", ") : "nadie (el filtro no coincide con ningún repartidor)"}.{datos.soloDesde ? ` Solo paquetes recibidos desde el ${datos.soloDesde}.` : ""} Los demás paquetes quedan sin avisar y el bot no conversa con sus clientes.
         </p>
       )}
 

@@ -9,7 +9,7 @@ import { estadoSesionOpenWA } from "./openwa";
 import { telefonosQueDijeronNo } from "./optout";
 import { configsOpenWA, ritmoDesdeEntorno } from "./proveedor";
 import { repartirCola, type PersonaEnCola } from "./reparto";
-import { rutasPermitidas } from "./soloRutas";
+import { desdeFecha, rutasPermitidas } from "./soloRutas";
 
 /** Un mismo paquete de avisos fallando 2 veces en el día deja de reintentarse (número inválido, etc.). */
 const FALLOS_MAXIMOS_POR_PERSONA = 2;
@@ -118,11 +118,14 @@ async function ejecutarTanda(ahora: Date): Promise<ResumenTanda> {
       pausa: "ENVIO_SOLO_REPARTIDORES no coincide con ningún repartidor: no se avisa a nadie.",
     };
   }
-  const consultaPaquetes = admin
+  let consultaPaquetes = admin
     .from("paquetes")
     .select("id, numero_guia, nombre_etiqueta, destinatario_id, fecha_recibido, destinatarios(telefono)")
     .eq("estado", "recibido")
     .order("fecha_recibido");
+  // ENVIO_SOLO_DESDE: solo los paquetes recibidos desde ese día (el listado de hoy)
+  const desde = desdeFecha();
+  if (desde) consultaPaquetes = consultaPaquetes.gte("fecha_recibido", desde);
   const [{ data: paquetes }, { data: delDia }] = await Promise.all([
     permitidas ? consultaPaquetes.in("repartidor_asignado_id", permitidas.ids) : consultaPaquetes,
     admin
