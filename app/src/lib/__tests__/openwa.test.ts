@@ -475,3 +475,17 @@ describe("goteo", () => {
     expect(r.topeDiario).toBe(50);
   });
 });
+
+describe("aviso 'voy en camino'", () => {
+  it("redondea la espera de 5 en 5 y nunca promete menos de 10 minutos", async () => {
+    const { describirEspera, textoVoyEnCamino } = await import("../whatsapp/plantillas");
+    expect(describirEspera(3)).toBe("unos 10 minutos");
+    expect(describirEspera(22)).toBe("unos 20 minutos");
+    expect(describirEspera(60)).toBe("aproximadamente 1 hora");
+    expect(describirEspera(95)).toBe("aproximadamente 1 h 35 min");
+    const t = textoVoyEnCamino("Julius Manuel Perez", 28, "Ana Gómez");
+    expect(t).toContain("Julius va en camino");
+    expect(t).toContain("unos 30 minutos");
+    expect(t).toContain("cédula de Ana Gómez");
+  });
+});

@@ -191,3 +191,19 @@ export function textoUbicacionRecibida(horario: string | null, nombreEtiqueta: s
   const cuando = horario ? ` en el horario de ${horario}` : "";
   return `Ubicación recibida ✅ Tu repartidor pasará${cuando}. Ten lista la cédula de ${nombreEtiqueta.trim()}.`;
 }
+
+/** "Unos 20 minutos", redondeado de 5 en 5 (nunca promete menos de 10). */
+export function describirEspera(minutos: number): string {
+  const m = Math.max(10, Math.round(minutos / 5) * 5);
+  if (m < 60) return `unos ${m} minutos`;
+  const h = Math.floor(m / 60);
+  const resto = m % 60;
+  if (resto === 0) return h === 1 ? "aproximadamente 1 hora" : `aproximadamente ${h} horas`;
+  return `aproximadamente ${h} h ${resto} min`;
+}
+
+/** Aviso único cuando el repartidor sale hacia la casa del cliente. */
+export function textoVoyEnCamino(repartidor: string | null, minutos: number, nombreEtiqueta: string): string {
+  const quien = repartidor ? repartidor.trim().split(/\s+/)[0] : "Tu repartidor";
+  return `${quien} va en camino a tu casa 🛵 Llegará en ${describirEspera(minutos)}.\nTen a mano la cédula de ${nombreEtiqueta.trim()} y que alguien pueda recibir.`;
+}

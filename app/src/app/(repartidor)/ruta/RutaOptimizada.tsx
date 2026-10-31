@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { enlaceRutaGoogleMaps } from "@/lib/enlaceRuta";
-import { ordenarRuta, type Punto } from "@/lib/ruta";
+import { CONFIG_RUTA, ordenarRuta, type Punto } from "@/lib/ruta";
 
 export interface ParadaRuta {
   id: string;
@@ -24,6 +24,36 @@ export interface ParadaRuta {
 
 const REVISAR_POSICION_CADA_MS = 60_000;
 
+/** Minutos hasta llegar a la casa (el acumulado incluye el rato de entrega de esa parada). */
+const minutosHastaLlegar = (acumuladoMin: number) => Math.max(0, acumuladoMin - CONFIG_RUTA.minutosPorParada);
+
+const formatoHora = (d: Date) => d.toLocaleTimeString("es-DO", { hour: "numeric", minute: "2-digit", hour12: true });
+
+/** Avisa por WhatsApp al cliente que el repartidor va hacia su casa (el servidor evita repetirlo). */
+function BotonVoy({ id, minutos, bloqueada, grande = false }: { id: string; minutos: number; bloqueada: boolean; grande?: boolean }) {
+  const [estado, setEstado] = useState<"libre" | "enviando" | "enviado" | "error">("libre");
+  const enviar = async () => {
+    setEstado("enviando");
+    try {
+      const r = await fetch("/api/voy-en-camino", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ paqueteId: id, minutos: Math.round(minutos) }),
+      });
+      setEstado(r.ok ? "enviado" : "error");
+    } catch {
+      setEstado("error");
+    }
+  };
+  const base = grande ? "col-span-2 rounded-lg border border-white/30 py-3 text-center" : "shrink-0 rounded-md border border-linea px-3 py-2 text-sm font-semibold";
+  if (estado === "enviado") return <span className={`${base} ${grande ? "text-white/70" : "text-tinta-2"}`}>Cliente avisado ✓</span>;
+  return (
+    <button type="button" onClick={enviar} disabled={bloqueada || estado === "enviando"} className={`${base} disabled:opacity-40`}>
+      {estado === "enviando" ? "Avisando…" : estado === "error" ? "No se pudo, reintentar" : "Voy para allá 🛵"}
+    </button>
+  );
+}
+
 function formatoDuracion(minutos: number): string {
   const total = Math.round(minutos);
   if (total < 60) return `${total} min`;
@@ -37,6 +67,17 @@ function formatoDuracion(minutos: number): string {
  */
 export function RutaOptimizada({ paradas, bloqueada = false }: { paradas: ParadaRuta[]; bloqueada?: boolean }) {
   const [origen, setOrigen] = useState<Punto | null>(null);
+  // La hora se calcula en el navegador (no en el servidor) para que sea la del teléfono
+  const [ahora, setAhora] = useState<number | null>(null);
+
+  useEffect(() => {
+    const primera = setTimeout(() => setAhora(Date.now()), 0);
+    const t = setInterval(() => setAhora(Date.now()), 60_000);
+    return () => {
+      clearTimeout(primera);
+      clearInterval(t);
+    };
+  }, []);
 
   useEffect(() => {
     if (!navigator.geolocation) return;
@@ -69,6 +110,7 @@ export function RutaOptimizada({ paradas, bloqueada = false }: { paradas: Parada
   const parada = porId.get(siguiente.id)!;
   const resto = orden.slice(1);
   const total = orden[orden.length - 1];
+  const llegada = (acumuladoMin: number) => (ahora === null ? null : formatoHora(new Date(ahora + minutosHastaLlegar(acumuladoMin) * 60_000)));
 
   // Ruta completa en Google Maps: solo con paradas de ubicación exacta (las aproximadas llevarían al centro del sector)
   const puntosExactos = orden.flatMap((o) => {
@@ -92,6 +134,7 @@ export function RutaOptimizada({ paradas, bloqueada = false }: { paradas: Parada
         <p className="mt-2 text-sm">
           {siguiente.aproximada ? "Sin ubicación exacta" : origen ? `A ${siguiente.distanciaKm.toFixed(1)} km de ti` : "Activa tu ubicación para ver la distancia"}
           {parada.ubicacionAproximada && !siguiente.aproximada ? " · ubicación aproximada (centro del sector)" : ""}
+          {!siguiente.aproximada && llegada(siguiente.acumuladoMin) ? ` · llegas ≈ ${llegada(siguiente.acumuladoMin)}` : ""}
         </p>
         <div className="mt-3 grid grid-cols-2 gap-2 text-sm font-semibold">
           <a href={parada.enlaceMapa} target="_blank" rel="noopener noreferrer" className="rounded-lg border border-white/30 py-3 text-center">
@@ -104,6 +147,7 @@ export function RutaOptimizada({ paradas, bloqueada = false }: { paradas: Parada
               Entregar
             </Link>
           )}
+          <BotonVoy id={parada.id} minutos={minutosHastaLlegar(siguiente.acumuladoMin)} bloqueada={bloqueada} grande />
         </div>
       </div>
 
@@ -136,9 +180,10 @@ export function RutaOptimizada({ paradas, bloqueada = false }: { paradas: Parada
                   </span>
                   <span className="block truncate text-xs text-tinta-2">
                     {p.etiquetaFranja} · {p.sector ?? "Sin sector"}
-                    {o.aproximada ? " · sin ubicación" : ""}
+                    {o.aproximada ? " · sin ubicación" : llegada(o.acumuladoMin) ? ` · ≈ ${llegada(o.acumuladoMin)}` : ""}
                   </span>
                 </span>
+                <BotonVoy id={p.id} minutos={minutosHastaLlegar(o.acumuladoMin)} bloqueada={bloqueada} />
                 {bloqueada ? (
                   <span aria-disabled="true" className="shrink-0 rounded-md border border-linea px-3 py-2 text-sm font-semibold opacity-40">Entregar</span>
                 ) : (
