@@ -1,6 +1,7 @@
-import { NextResponse } from "next/server";
+import { NextResponse, after } from "next/server";
 import { z } from "zod";
 import { formatearCedula } from "@/lib/cedula";
+import { enviarPruebaAlCourier } from "@/lib/courier";
 import { obtenerUsuarioActual } from "@/lib/sesion";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
@@ -54,7 +55,7 @@ export async function POST(request: Request) {
   // RLS: el repartidor solo ve los paquetes que tiene asignados
   const { data: paquete } = await supabase
     .from("paquetes")
-    .select("id, nombre_etiqueta, estado, destinatario_id")
+    .select("id, numero_guia, nombre_etiqueta, estado, destinatario_id")
     .eq("id", datos.paqueteId)
     .maybeSingle();
   if (!paquete) return falla("Ese paquete no está en tu ruta.", 404);
@@ -112,6 +113,30 @@ export async function POST(request: Request) {
 
   // Ya con la cédula verificada se guarda en la ficha del destinatario (el repartidor no puede editarla él mismo)
   await createAdminClient().from("destinatarios").update({ cedula: numero }).eq("id", paquete.destinatario_id).is("cedula", null);
+
+  // En el instante de la entrega la prueba sale hacia el courier (si hay un canal configurado), sin
+  // hacer esperar al repartidor. Si sale bien, la entrega queda marcada como subida sola.
+  const momento = momentoDeEntrega(datos.momento);
+  after(async () => {
+    const salida = await enviarPruebaAlCourier({
+      entregaId: entrega.id,
+      guia: paquete.numero_guia,
+      nombre: paquete.nombre_etiqueta,
+      cedula: formatearCedula(numero),
+      repartidor: usuario.nombre,
+      momento,
+      fotoBase64: datos.imagen,
+    });
+    if (salida.ok) {
+      await createAdminClient()
+        .from("entregas")
+        .update({ cargado_en_courier: true, cargado_en_courier_en: new Date().toISOString() })
+        .eq("id", entrega.id)
+        .eq("cargado_en_courier", false);
+    } else if (salida.motivo !== "sin_canal") {
+      console.error("La prueba no salió hacia el courier:", salida.motivo);
+    }
+  });
 
   return NextResponse.json({
     ok: true,
