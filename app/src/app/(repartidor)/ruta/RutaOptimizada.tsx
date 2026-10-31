@@ -18,6 +18,8 @@ export interface ParadaRuta {
   /** La ubicación sale del centro de su sector, no del punto que compartió el cliente. */
   ubicacionAproximada: boolean;
   enlaceMapa: string;
+  /** El cliente confirmó hace poco: acaba de entrar a la ruta. */
+  nuevo: boolean;
 }
 
 const REVISAR_POSICION_CADA_MS = 60_000;
@@ -78,7 +80,10 @@ export function RutaOptimizada({ paradas, bloqueada = false }: { paradas: Parada
   return (
     <div className="space-y-4">
       <div className="rounded-xl bg-tinta p-4 text-white">
-        <p className="text-xs font-semibold uppercase tracking-wide text-acento">Siguiente parada · {parada.etiquetaFranja}</p>
+        <p className="text-xs font-semibold uppercase tracking-wide text-acento">
+          Siguiente parada · {parada.etiquetaFranja}
+          {parada.nuevo && <span className="ml-2 rounded-full bg-acento px-2 py-0.5 text-[10px] font-bold text-[#1a0900]">NUEVO</span>}
+        </p>
         <p className="mt-1 font-display text-2xl font-semibold leading-tight">{parada.nombre}</p>
         <p className="text-sm text-white/70">
           {parada.direccion ?? "Sin dirección"}
@@ -125,7 +130,10 @@ export function RutaOptimizada({ paradas, bloqueada = false }: { paradas: Parada
               <li key={o.id} className="flex items-center gap-3 rounded-lg border border-linea bg-tarjeta px-3 py-3">
                 <span className="grid size-7 shrink-0 place-items-center rounded-full bg-tinta/10 text-sm font-semibold">{i + 2}</span>
                 <span className="min-w-0 flex-1">
-                  <span className="block truncate font-medium">{p.nombre}</span>
+                  <span className="block truncate font-medium">
+                    {p.nombre}
+                    {p.nuevo && <span className="ml-2 rounded-full bg-acento px-2 py-0.5 text-[10px] font-bold text-[#1a0900]">NUEVO</span>}
+                  </span>
                   <span className="block truncate text-xs text-tinta-2">
                     {p.etiquetaFranja} · {p.sector ?? "Sin sector"}
                     {o.aproximada ? " · sin ubicación" : ""}
