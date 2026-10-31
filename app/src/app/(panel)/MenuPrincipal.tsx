@@ -22,6 +22,7 @@ const GRUPOS: Grupo[] = [
     titulo: "Preparación",
     enlaces: [
       { href: "/importar", texto: "Importar listado" },
+      { href: "/escanear", texto: "Recepción (escáner)" },
       { href: "/paquetes", texto: "Paquetes" },
       { href: "/en-vivo", texto: "En vivo" },
     ],
