@@ -65,7 +65,8 @@ export function ritmoDesdeEntorno(env: Record<string, string | undefined> = proc
     porTandaMax: Math.max(porTandaMin, numero(env.ENVIO_POR_TANDA_MAX, 4, 1)),
     pausaMinSegundos: pausaMin,
     pausaMaxSegundos: Math.max(pausaMin, numero(env.ENVIO_PAUSA_MAX_S, 50, 0)),
-    topeDiario: numero(env.ENVIO_TOPE_DIARIO, 200, 1),
+    // 0 = sin tope: se avisa a todos lo antes posible (el ritmo lo marcan las pausas entre mensajes)
+    topeDiario: numero(env.ENVIO_TOPE_DIARIO, 0, 0),
     fallosSeguidosParaFrenar: numero(env.ENVIO_FALLOS_PARA_FRENAR, 5, 1),
     recordatoriosPorLlamada: numero(env.ENVIO_RECORDATORIOS_POR_LLAMADA, 3, 0),
   };

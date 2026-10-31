@@ -40,7 +40,7 @@ export function planificarTanda(entrada: EntradaTanda): PlanTanda {
       pausa: `${entrada.fallosSeguidos} envíos fallidos seguidos: revisa el WhatsApp antes de seguir.`,
     };
   }
-  const restantes = ritmo.topeDiario - entrada.enviadosHoy;
+  const restantes = ritmo.topeDiario > 0 ? ritmo.topeDiario - entrada.enviadosHoy : Infinity;
   if (restantes <= 0) return { enviar: 0, pausa: `Se llegó al tope de hoy (${ritmo.topeDiario} personas).` };
   if (entrada.enCola === 0) return { enviar: 0, pausa: "No hay avisos en cola." };
 

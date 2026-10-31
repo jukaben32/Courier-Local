@@ -1,5 +1,7 @@
+import { leerEstadoEnvio } from "@/lib/estadoEnvioDatos";
 import { createClient } from "@/lib/supabase/server";
 import type { SectorOpcion } from "../recibir/FormularioRecibir";
+import { EstadoEnvio } from "./EstadoEnvio";
 import { ImportarListado } from "./ImportarListado";
 
 interface Importacion {
@@ -11,11 +13,15 @@ interface Importacion {
   created_at: string;
 }
 
+// Importar 200 o más envíos y guardarlos uno por uno puede pasar de un minuto
+export const maxDuration = 120;
+
 export default async function PaginaImportar() {
   const supabase = await createClient();
-  const [{ data: sectoresBD }, { data: historial, error: errorHistorial }] = await Promise.all([
+  const [{ data: sectoresBD }, { data: historial, error: errorHistorial }, estadoEnvio] = await Promise.all([
     supabase.from("sectores").select("id, nombre, zonas(nombre)").order("nombre"),
     supabase.from("importaciones").select("id, archivo, total_filas, importadas, omitidas, created_at").order("created_at", { ascending: false }).limit(10),
+    leerEstadoEnvio(supabase),
   ]);
 
   const filas = (sectoresBD ?? []) as unknown as { id: string; nombre: string; zonas: { nombre: string } | null }[];
@@ -38,6 +44,8 @@ export default async function PaginaImportar() {
           Falta preparar la base de datos: aplica <span className="font-mono">base-de-datos/009-importar-listado.sql</span> en Supabase.
         </p>
       )}
+
+      {estadoEnvio && <EstadoEnvio datos={estadoEnvio} />}
 
       <ImportarListado sectores={sectores} />
 

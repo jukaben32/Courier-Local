@@ -425,11 +425,17 @@ describe("goteo", () => {
 
   it("no manda más de las que hay en cola ni de las que faltan para el tope", () => {
     expect(planificarTanda(entrada({ enCola: 1, azar: () => 0.99 }))).toEqual({ enviar: 1 });
-    expect(planificarTanda(entrada({ enviadosHoy: 199, azar: () => 0.99 }))).toEqual({ enviar: 1 });
+    const conTope = ritmoDesdeEntorno({ ENVIO_TOPE_DIARIO: "200" });
+    expect(planificarTanda(entrada({ ritmo: conTope, enviadosHoy: 199, azar: () => 0.99 }))).toEqual({ enviar: 1 });
   });
 
-  it("se detiene con el tope diario, la cola vacía y los fallos seguidos", () => {
-    expect(planificarTanda(entrada({ enviadosHoy: 200 })).pausa).toContain("tope");
+  it("por defecto no hay tope diario: se avisa a todos lo antes posible", () => {
+    expect(ritmo.topeDiario).toBe(0);
+    expect(planificarTanda(entrada({ enviadosHoy: 5000 })).enviar).toBeGreaterThan(0);
+  });
+
+  it("se detiene con el tope diario (si se configura), la cola vacía y los fallos seguidos", () => {
+    expect(planificarTanda(entrada({ ritmo: ritmoDesdeEntorno({ ENVIO_TOPE_DIARIO: "200" }), enviadosHoy: 200 })).pausa).toContain("tope");
     expect(planificarTanda(entrada({ enCola: 0 })).pausa).toContain("No hay avisos");
     expect(planificarTanda(entrada({ fallosSeguidos: 5 })).pausa).toContain("fallidos seguidos");
     expect(planificarTanda(entrada({ fallosSeguidos: 4 })).enviar).toBeGreaterThan(0);

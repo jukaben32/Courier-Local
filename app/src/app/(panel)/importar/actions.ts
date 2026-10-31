@@ -24,15 +24,30 @@ export interface FilaRevisada {
   contenido: string;
   /** Si tiene motivo, la fila no se puede importar. */
   motivo: string | null;
+  /** Ya estaba registrada (el listado de la oficina es acumulado): no es un error, solo se omite. */
+  repetida: boolean;
+}
+
+/** Lo que el navegador necesita para mostrar a qué repartidor irá cada paquete, antes de importar. */
+export interface AsignacionPrevia {
+  /** Repartidores dueños de cada sector. */
+  duenos: Record<string, string[]>;
+  nombres: Record<string, string>;
+  /** Paquetes que ya lleva cada repartidor. */
+  carga: Record<string, number>;
+  administradorId: string | null;
 }
 
 export interface EstadoRevision {
   filas?: FilaRevisada[];
+  asignacion?: AsignacionPrevia;
   error?: string;
 }
 
 export interface EstadoImportacion {
   importadas?: number;
+  /** Ya estaban registrados antes: se omitieron sin avisar de error. */
+  yaRegistradas?: number;
   sinRepartidor?: number;
   omitidas?: { fila: number; guia: string; motivo: string }[];
   error?: string;
@@ -58,6 +73,8 @@ async function leerArchivo(formData: FormData): Promise<{ archivo: File; envios:
   }
 }
 
+const MOTIVO_REPETIDA = "Ya fue registrada antes.";
+
 /** Por qué una fila no se puede importar (null = se puede). */
 async function motivosDeRechazo(supabase: Supabase, envios: EnvioListado[]): Promise<Map<string, string>> {
   const guias = envios.map((e) => e.guia).filter(Boolean);
@@ -70,7 +87,7 @@ async function motivosDeRechazo(supabase: Supabase, envios: EnvioListado[]): Pro
     const id = `${e.fila}`;
     if (!e.guia) motivos.set(id, "Falta el código (guía).");
     else if (vistas.has(e.guia)) motivos.set(id, "Guía repetida en el mismo listado.");
-    else if (yaRegistradas.has(e.guia)) motivos.set(id, "Ya fue registrada antes.");
+    else if (yaRegistradas.has(e.guia)) motivos.set(id, MOTIVO_REPETIDA);
     else if (e.nombre.length < 3) motivos.set(id, "Falta el nombre del cliente.");
     else if (!e.telefono) motivos.set(id, `Teléfono no válido de RD: "${e.telefonoOriginal || "vacío"}".`);
     vistas.add(e.guia);
@@ -94,7 +111,16 @@ export async function revisarListado(_anterior: EstadoRevision, formData: FormDa
   const supabase = await createClient();
   const [sectores, motivos] = await Promise.all([cargarSectores(supabase), motivosDeRechazo(supabase, leido.envios)]);
 
+  const contexto = await cargarContextoAsignacion(supabase, sectores.map((x) => x.id));
+  const { data: repartidoresBD } = await supabase.from("repartidores").select("id, nombre");
+
   return {
+    asignacion: {
+      duenos: Object.fromEntries(contexto.duenosPorSector),
+      nombres: Object.fromEntries((repartidoresBD ?? []).map((r: { id: string; nombre: string }) => [r.id, r.nombre])),
+      carga: contexto.cargaActual,
+      administradorId: contexto.administradorId,
+    },
     filas: leido.envios.map((e) => ({
       fila: e.fila,
       guia: e.guia,
@@ -105,6 +131,7 @@ export async function revisarListado(_anterior: EstadoRevision, formData: FormDa
       sectorId: buscarSector(e.sectorListado, sectores) ?? "",
       contenido: e.contenido,
       motivo: motivos.get(`${e.fila}`) ?? null,
+      repetida: motivos.get(`${e.fila}`) === MOTIVO_REPETIDA,
     })),
   };
 }
@@ -156,11 +183,16 @@ export async function importarListado(formData: FormData): Promise<EstadoImporta
   const omitidas: NonNullable<EstadoImportacion["omitidas"]> = [];
   let importadas = 0;
   let sinRepartidor = 0;
+  let yaRegistradas = 0;
 
   // Uno por uno y en orden: así la carga de cada repartidor se reparte bien en los sectores rotativos
   for (const { envio, ajuste, sectorId } of elegidos) {
     const omitir = (motivo: string) => omitidas.push({ fila: envio.fila, guia: envio.guia, motivo });
     const motivo = motivos.get(`${envio.fila}`);
+    if (motivo === MOTIVO_REPETIDA) {
+      yaRegistradas++;
+      continue;
+    }
     if (motivo) {
       omitir(motivo);
       continue;
@@ -200,5 +232,5 @@ export async function importarListado(formData: FormData): Promise<EstadoImporta
 
   revalidatePath("/paquetes");
   revalidatePath("/importar");
-  return { importadas, sinRepartidor, omitidas };
+  return { importadas, sinRepartidor, yaRegistradas, omitidas };
 }
