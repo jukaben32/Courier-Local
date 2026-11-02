@@ -31,7 +31,7 @@ type Admin = ReturnType<typeof createAdminClient>;
 
 const ESTADOS_COORDINABLES = ["recibido", "notificado", "confirmado"];
 const ESTADOS_ESPERANDO = ["recibido", "notificado"];
-const ESTADOS_CON_RUTA = ["recibido", "notificado", "confirmado", "en_ruta"];
+export const ESTADOS_CON_RUTA = ["recibido", "notificado", "confirmado", "en_ruta"];
 
 interface PaqueteAbierto {
   id: string;
@@ -41,7 +41,7 @@ interface PaqueteAbierto {
   hora_preferida: string | null;
 }
 
-async function paquetesDelCliente(admin: Admin, telefono: string, estados: string[]): Promise<PaqueteAbierto[]> {
+export async function paquetesDelCliente(admin: Admin, telefono: string, estados: string[]): Promise<PaqueteAbierto[]> {
   const { data: personas } = await admin.from("destinatarios").select("id").eq("telefono", telefono);
   const ids = (personas ?? []).map((p) => p.id);
   if (ids.length === 0) return [];
@@ -62,7 +62,7 @@ interface Respuesta {
 }
 
 /** Envía una respuesta libre al cliente y la deja anotada en el historial. */
-async function responder(admin: Admin, telefono: string, paqueteId: string | null, r: Respuesta): Promise<boolean> {
+export async function responder(admin: Admin, telefono: string, paqueteId: string | null, r: Respuesta): Promise<boolean> {
   const [resultado] = await enviarPorWhatsApp([{ telefono, cuerpo: r.cuerpo }]);
   await admin.from("mensajes_whatsapp").insert({
     paquete_id: paqueteId,

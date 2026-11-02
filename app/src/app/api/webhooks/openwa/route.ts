@@ -1,6 +1,7 @@
 import { NextResponse, after } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { procesarEntrante } from "@/lib/whatsapp/conversacion";
+import { responderConIA } from "@/lib/whatsapp/ia-respaldo";
 import { enviarPorWhatsApp } from "@/lib/whatsapp/cliente";
 import { cuerpoTexto } from "@/lib/whatsapp/envio";
 import { configHorasDesdeEntorno } from "@/lib/whatsapp/proveedor";
@@ -58,7 +59,11 @@ async function procesarEvento(admin: Admin, evento: EventoOpenWA): Promise<void>
     menu.opciones as OpcionMenu[],
     configHorasDesdeEntorno(process.env)
   );
-  if (!interpretacion) return; // no se entiende: lo lee una persona en el teléfono
+  if (!interpretacion) {
+    // No se entiende con el menú: Claude intenta responder; si no puede, lo lee una persona
+    await responderConIA(admin, evento.telefono, evento.texto);
+    return;
+  }
 
   if (interpretacion.tipo === "rechazo") {
     await admin.from("mensajes_whatsapp").insert({
