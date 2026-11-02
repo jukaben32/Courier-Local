@@ -1,11 +1,14 @@
 import "server-only";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { diaDeRD } from "@/lib/periodoPago";
+import { formatearTelefono, normalizarTelefonoRD } from "@/lib/telefono";
 import { enviarPorWhatsApp } from "./cliente";
 import { cuerpoBotones, cuerpoPedirUbicacion, cuerpoTexto } from "./envio";
 import {
   bloquesDisponibles,
   columnaDeHora,
   etiquetaBloque,
+  etiquetaRango,
   franjaDeHora,
   horaDeColumna,
 } from "./horas";
@@ -24,6 +27,8 @@ import {
   ACCION_OTRA_PERSONA,
   ACCION_RETIRO,
   TEXTOS,
+  textoConfirmacionFinal,
+  textoOtraPersona,
   textoUbicacionRecibida,
 } from "./plantillas";
 
@@ -39,7 +44,12 @@ interface PaqueteAbierto {
   nombre_etiqueta: string;
   ventana_horaria: string | null;
   hora_preferida: string | null;
+  ubicacion_entrega_lat: number | null;
+  direccion_entrega_texto: string | null;
 }
+
+/** La ubicación puede ser el pin o la dirección escrita por el cliente. */
+const tieneUbicacion = (p: PaqueteAbierto) => p.ubicacion_entrega_lat !== null || !!p.direccion_entrega_texto;
 
 export async function paquetesDelCliente(admin: Admin, telefono: string, estados: string[]): Promise<PaqueteAbierto[]> {
   const { data: personas } = await admin.from("destinatarios").select("id").eq("telefono", telefono);
@@ -48,7 +58,7 @@ export async function paquetesDelCliente(admin: Admin, telefono: string, estados
 
   const { data } = await admin
     .from("paquetes")
-    .select("id, estado, nombre_etiqueta, ventana_horaria, hora_preferida")
+    .select("id, estado, nombre_etiqueta, ventana_horaria, hora_preferida, ubicacion_entrega_lat, direccion_entrega_texto")
     .in("destinatario_id", ids)
     .in("estado", estados)
     .order("fecha_recibido");
@@ -72,6 +82,7 @@ export async function responder(admin: Admin, telefono: string, paqueteId: strin
     estado: resultado.ok ? "enviado" : "fallido",
     contenido: r.resumen,
     proveedor_id: resultado.id ?? null,
+    sesion: resultado.sesion ?? null,
     error: resultado.error ?? null,
   });
   return resultado.ok;
@@ -122,14 +133,61 @@ async function pedirUbicacion(admin: Admin, telefono: string, paqueteId: string 
 }
 
 /**
+ * Versión OpenWA: cuando ya hay hora y ubicación se manda UN solo mensaje de cierre, con el
+ * nombre y el teléfono del repartidor para que arreglen cualquier detalle directamente.
+ */
+async function confirmarCoordinacion(admin: Admin, telefono: string, paqueteIds: string[]): Promise<void> {
+  const { data } = await admin
+    .from("paquetes")
+    .select("id, nombre_etiqueta, ventana_horaria, hora_preferida, hora_hasta, dia_entrega, repartidores!paquetes_repartidor_asignado_id_fkey(nombre, telefono)")
+    .in("id", paqueteIds)
+    .eq("estado", "confirmado")
+    .order("fecha_recibido")
+    .limit(1);
+  const paquete = (data ?? [])[0] as unknown as
+    | {
+        id: string;
+        nombre_etiqueta: string;
+        ventana_horaria: string | null;
+        hora_preferida: string | null;
+        hora_hasta: string | null;
+        dia_entrega: string | null;
+        repartidores: { nombre: string; telefono: string | null } | null;
+      }
+    | undefined;
+  if (!paquete) return;
+
+  const { data: franjas } = await admin.from("franjas").select("codigo, hora_inicio, hora_fin");
+  const franja = ((franjas ?? []) as Franja[]).find((f) => f.codigo === paquete.ventana_horaria);
+  const hora = horaDeColumna(paquete.hora_preferida);
+  const horario = hora !== null ? etiquetaRango(hora, horaDeColumna(paquete.hora_hasta) ?? hora + 1) : franja ? tituloFranja(franja) : null;
+  const paraManana = paquete.dia_entrega !== null && paquete.dia_entrega > diaDeRD(new Date());
+
+  const telefonoRepartidor = paquete.repartidores?.telefono ?? null;
+  const normalizado = telefonoRepartidor ? normalizarTelefonoRD(telefonoRepartidor) : null;
+  const repartidor = paquete.repartidores
+    ? { nombre: paquete.repartidores.nombre, telefono: normalizado ? formatearTelefono(normalizado) : telefonoRepartidor }
+    : null;
+
+  await responder(admin, telefono, paquete.id, {
+    tipo: "respuesta",
+    ...texto(textoConfirmacionFinal(horario, paquete.nombre_etiqueta, repartidor, paraManana)),
+  });
+}
+
+/**
  * Lo que pasa cuando un cliente escribe o toca un botón. Sin sesión de usuario: usa la clave de
  * servidor. Cada paso solo toca los paquetes de ESE teléfono que están en un estado válido.
  */
 export async function procesarEntrante(
   entrante: Entrante,
-  opciones: { soloLoEntendido?: boolean } = {}
+  opciones: { soloLoEntendido?: boolean; /** Lo que escribió el cliente tal cual ("2", "a la 1"). */ textoOriginal?: string } = {}
 ): Promise<void> {
   const admin = createAdminClient();
+  // En OpenWA, una hora elegida de un menú anterior equivale a un rango de una hora
+  if (usaOpenWA() && entrante.tipo === "hora") {
+    entrante = { telefono: entrante.telefono, tipo: "rango", desde: entrante.hora, hasta: entrante.hora + 1, dia: "hoy" };
+  }
   const { telefono } = entrante;
 
   const abiertos = await paquetesDelCliente(admin, telefono, ESTADOS_CON_RUTA);
@@ -141,7 +199,7 @@ export async function procesarEntrante(
     direccion: "entrante",
     tipo: "respuesta",
     estado: "entregado",
-    contenido: entrante.tipo === "texto" ? entrante.texto : `${entrante.tipo}`,
+    contenido: opciones.textoOriginal ?? (entrante.tipo === "texto" ? entrante.texto : `${entrante.tipo}`),
   });
 
   if (abiertos.length === 0) {
@@ -153,6 +211,7 @@ export async function procesarEntrante(
   }
 
   if (entrante.tipo === "ubicacion") {
+    const yaTeniaUbicacion = abiertos.some(tieneUbicacion);
     await admin
       .from("paquetes")
       .update({
@@ -161,6 +220,13 @@ export async function procesarEntrante(
         ubicacion_entrega_en: new Date().toISOString(),
       })
       .in("id", abiertos.map((p) => p.id));
+
+    if (usaOpenWA()) {
+      // Sin mensajes intermedios: solo se responde si ya eligió hora y es la primera vez que manda su ubicación
+      const confirmados = abiertos.filter((p) => p.estado === "confirmado");
+      if (confirmados.length > 0 && !yaTeniaUbicacion) await confirmarCoordinacion(admin, telefono, confirmados.map((p) => p.id));
+      return;
+    }
 
     const { data: franjas } = await admin.from("franjas").select("codigo, hora_inicio, hora_fin");
     const franja = ((franjas ?? []) as Franja[]).find((f) => f.codigo === abiertos[0].ventana_horaria);
@@ -174,6 +240,18 @@ export async function procesarEntrante(
   // Solo se pueden coordinar los paquetes que aún no salen en ruta ni están en retiro
   // Lo que el cliente elige aplica a los paquetes que esperan su respuesta; los que ya tienen horario
   // confirmado solo cambian si no queda ninguno esperando (el cliente está reprogramando).
+  if (entrante.tipo === "direccion") {
+    const yaTeniaUbicacion = abiertos.some(tieneUbicacion);
+    await admin
+      .from("paquetes")
+      .update({ direccion_entrega_texto: entrante.texto.trim().slice(0, 500), ubicacion_entrega_en: new Date().toISOString() })
+      .in("id", abiertos.map((p) => p.id));
+    // Igual que con el pin: solo se responde si ya eligió hora y es la primera vez que da su ubicación
+    const confirmados = abiertos.filter((p) => p.estado === "confirmado");
+    if (confirmados.length > 0 && !yaTeniaUbicacion) await confirmarCoordinacion(admin, telefono, confirmados.map((p) => p.id));
+    return;
+  }
+
   const coordinables = abiertos.filter((p) => ESTADOS_COORDINABLES.includes(p.estado));
   const esperando = coordinables.filter((p) => ESTADOS_ESPERANDO.includes(p.estado));
   const objetivo = (esperando.length > 0 ? esperando : coordinables).map((p) => p.id);
@@ -193,6 +271,10 @@ export async function procesarEntrante(
         hora_confirmacion: new Date().toISOString(),
       })
       .in("id", objetivo);
+    if (usaOpenWA()) {
+      if (abiertos.some(tieneUbicacion)) await confirmarCoordinacion(admin, telefono, objetivo);
+      return;
+    }
     await pedirUbicacion(admin, telefono, primero);
     return;
   }
@@ -203,6 +285,9 @@ export async function procesarEntrante(
       await pedirFranjas(admin, telefono, primero, TEXTOS.franjaPasada);
       return;
     }
+    // Si repite la misma hora que ya tenía confirmada, no se le vuelve a escribir
+    const columna = columnaDeHora(entrante.hora);
+    const mismaHora = abiertos.filter((p) => objetivo.includes(p.id)).every((p) => p.estado === "confirmado" && p.hora_preferida === columna);
     await admin
       .from("paquetes")
       .update({
@@ -212,7 +297,30 @@ export async function procesarEntrante(
         hora_confirmacion: new Date().toISOString(),
       })
       .in("id", objetivo);
+    if (usaOpenWA()) {
+      if (!mismaHora && abiertos.some(tieneUbicacion)) await confirmarCoordinacion(admin, telefono, objetivo);
+      return;
+    }
     await pedirUbicacion(admin, telefono, primero);
+    return;
+  }
+
+  if (entrante.tipo === "rango") {
+    // Ya quedó coordinado (hora y ubicación): cualquier cambio lo arregla con el repartidor, el bot no insiste
+    if (abiertos.some((p) => p.estado === "confirmado" && tieneUbicacion(p))) return;
+
+    await admin
+      .from("paquetes")
+      .update({
+        estado: "confirmado",
+        ventana_horaria: franjaDeHora(entrante.desde),
+        hora_preferida: columnaDeHora(entrante.desde),
+        hora_hasta: columnaDeHora(entrante.hasta),
+        dia_entrega: entrante.dia === "manana" ? diaDeRD(new Date(Date.now() + 24 * 60 * 60 * 1000)) : null,
+        hora_confirmacion: new Date().toISOString(),
+      })
+      .in("id", objetivo);
+    if (abiertos.some(tieneUbicacion)) await confirmarCoordinacion(admin, telefono, objetivo);
     return;
   }
 
@@ -224,8 +332,15 @@ export async function procesarEntrante(
         .from("paquetes")
         .update({ estado: "retiro_oficina" })
         .in("id", objetivo);
-      await responder(admin, telefono, primero, { tipo: "respuesta", ...texto(TEXTOS.retiro) });
+      await responder(admin, telefono, primero, { tipo: "respuesta", ...texto(usaOpenWA() ? TEXTOS.retiroOpenWA : TEXTOS.retiro) });
     } else if (entrante.accion === ACCION_OTRA_PERSONA) {
+      if (usaOpenWA()) {
+        // Un solo mensaje: la cédula que debe llevar quien reciba y, si aún falta, la ubicación u hora
+        const faltaUbicacion = !abiertos.some(tieneUbicacion);
+        const faltaHora = !abiertos.some((p) => p.estado === "confirmado");
+        await responder(admin, telefono, primero, { tipo: "respuesta", ...texto(textoOtraPersona(faltaUbicacion, faltaHora)) });
+        return;
+      }
       await responder(admin, telefono, primero, { tipo: "respuesta", ...texto(TEXTOS.otraPersona) });
       await pedirFranjas(admin, telefono, primero, TEXTOS.pedirFranja);
     }

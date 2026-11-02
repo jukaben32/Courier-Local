@@ -8,11 +8,27 @@ export function usaOpenWA(env: Record<string, string | undefined> = process.env)
   return env.WHATSAPP_PROVEEDOR === "openwa";
 }
 
-/** Configuración de OpenWA, o null si falta alguna variable (entonces queda en modo simulado). */
+/** Máximo de cuentas de WhatsApp (sesiones de OpenWA) que se usan a la vez. */
+export const MAX_CUENTAS = 8;
+
+/** Ids de las sesiones: OPENWA_SESSION_IDS="uno,dos,..." (hasta 8) o, como antes, OPENWA_SESSION_ID. */
+export function sesionesOpenWA(env: Record<string, string | undefined> = process.env): string[] {
+  const crudo = env.OPENWA_SESSION_IDS?.trim() ? env.OPENWA_SESSION_IDS : (env.OPENWA_SESSION_ID ?? "");
+  const ids = crudo.split(",").map((s) => s.trim()).filter(Boolean);
+  return [...new Set(ids)].slice(0, MAX_CUENTAS);
+}
+
+/** Una configuración por cuenta de WhatsApp; vacía si falta alguna variable (entonces queda en modo simulado). */
+export function configsOpenWA(env: Record<string, string | undefined> = process.env): ConfigOpenWA[] {
+  const { OPENWA_URL, OPENWA_API_KEY } = env;
+  const ids = sesionesOpenWA(env);
+  if (!OPENWA_URL || !OPENWA_API_KEY || ids.length === 0) return [];
+  return ids.map((sessionId) => ({ url: OPENWA_URL.replace(/\/$/, ""), apiKey: OPENWA_API_KEY, sessionId }));
+}
+
+/** Configuración de la primera cuenta, o null si falta alguna variable (entonces queda en modo simulado). */
 export function configOpenWA(env: Record<string, string | undefined> = process.env): ConfigOpenWA | null {
-  const { OPENWA_URL, OPENWA_API_KEY, OPENWA_SESSION_ID } = env;
-  if (!OPENWA_URL || !OPENWA_API_KEY || !OPENWA_SESSION_ID) return null;
-  return { url: OPENWA_URL.replace(/\/$/, ""), apiKey: OPENWA_API_KEY, sessionId: OPENWA_SESSION_ID };
+  return configsOpenWA(env)[0] ?? null;
 }
 
 export function remitenteDesdeEntorno(env: Record<string, string | undefined> = process.env): string {
@@ -49,7 +65,8 @@ export function ritmoDesdeEntorno(env: Record<string, string | undefined> = proc
     porTandaMax: Math.max(porTandaMin, numero(env.ENVIO_POR_TANDA_MAX, 4, 1)),
     pausaMinSegundos: pausaMin,
     pausaMaxSegundos: Math.max(pausaMin, numero(env.ENVIO_PAUSA_MAX_S, 50, 0)),
-    topeDiario: numero(env.ENVIO_TOPE_DIARIO, 200, 1),
+    // 0 = sin tope: se avisa a todos lo antes posible (el ritmo lo marcan las pausas entre mensajes)
+    topeDiario: numero(env.ENVIO_TOPE_DIARIO, 0, 0),
     fallosSeguidosParaFrenar: numero(env.ENVIO_FALLOS_PARA_FRENAR, 5, 1),
     recordatoriosPorLlamada: numero(env.ENVIO_RECORDATORIOS_POR_LLAMADA, 3, 0),
   };

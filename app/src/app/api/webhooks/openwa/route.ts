@@ -1,10 +1,14 @@
+import { pareceDireccion, traeHoraExplicita } from "@/lib/whatsapp/direccion";
 import { NextResponse, after } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { procesarEntrante } from "@/lib/whatsapp/conversacion";
 import { responderConIA } from "@/lib/whatsapp/ia-respaldo";
 import { enviarPorWhatsApp } from "@/lib/whatsapp/cliente";
 import { cuerpoTexto } from "@/lib/whatsapp/envio";
-import { configHorasDesdeEntorno } from "@/lib/whatsapp/proveedor";
+import { configHorasDesdeEntorno, sesionesOpenWA } from "@/lib/whatsapp/proveedor";
+import { etiquetaRango } from "@/lib/whatsapp/horas";
+import { puedeConversar, rutasPermitidas } from "@/lib/whatsapp/soloRutas";
+import { textoAclararHora } from "@/lib/whatsapp/plantillas";
 import { interpretarRespuestaTexto, type OpcionMenu } from "@/lib/whatsapp/menu";
 import {
   firmaOpenWAValida,
@@ -31,7 +35,12 @@ const PREVIOS: Record<EstadoMensajeOpenWA, string[]> = {
 
 type Admin = ReturnType<typeof createAdminClient>;
 
-async function procesarEvento(admin: Admin, evento: EventoOpenWA): Promise<void> {
+interface OpcionesProceso {
+  /** Recuperación de mensajes viejos: se guardan sin pedirle aclaraciones al cliente. */
+  sinAclarar?: boolean;
+}
+
+async function procesarEvento(admin: Admin, evento: EventoOpenWA, opciones: OpcionesProceso = {}): Promise<void> {
   if (evento.clase === "estado") {
     const previos = PREVIOS[evento.estado];
     if (previos.length === 0) return;
@@ -45,14 +54,52 @@ async function procesarEvento(admin: Admin, evento: EventoOpenWA): Promise<void>
 
   // Solo se atiende a quien nosotros le escribimos antes: el número lo usa también la oficina
   // para hablar con gente, y esas conversaciones no deben tocarse ni guardarse.
-  const { data: menu } = await admin.from("menus_whatsapp").select("opciones").eq("telefono", evento.telefono).maybeSingle();
-  if (!menu) return;
+  const { data: menuGuardado } = await admin.from("menus_whatsapp").select("opciones, sesion").eq("telefono", evento.telefono).maybeSingle();
+  let menu = menuGuardado;
+  if (!menu) {
+    // Los avisos sin menú numerado no dejaban registro: se acepta a quien tiene un aviso real nuestro de la última semana
+    const semana = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+    const { count } = await admin
+      .from("mensajes_whatsapp")
+      .select("id", { count: "exact", head: true })
+      .eq("telefono", evento.telefono)
+      .eq("direccion", "saliente")
+      .eq("tipo", "aviso")
+      .or("proveedor_id.is.null,proveedor_id.not.like.sim-*")
+      .gte("creado_en", semana);
+    if (!count) return;
+    menu = { opciones: [], sesion: null };
+  }
+
+  // Con ENVIO_SOLO_REPARTIDORES el bot solo conversa con los clientes de esas rutas: a los demás se les
+  // guarda el mensaje (se ve en "En vivo") pero no se les contesta.
+  const permitidas = await rutasPermitidas();
+  if (permitidas && !(await puedeConversar(evento.telefono, permitidas.ids))) {
+    const que = evento.texto ?? (evento.adjunto ? `[${evento.adjunto}]` : evento.ubicacion ? "📍 Ubicación" : "—");
+    return anotarSinRespuesta(admin, evento.telefono, que);
+  }
+
+  // Las respuestas se tratan igual lleguen por la cuenta que lleguen. Solo se anota por cuál escribió
+  // el cliente, para contestarle desde esa misma cuenta.
+  if (evento.sesionId && evento.sesionId !== menu.sesion && sesionesOpenWA().includes(evento.sesionId)) {
+    await admin.from("menus_whatsapp").update({ sesion: evento.sesionId }).eq("telefono", evento.telefono);
+  }
 
   if (evento.ubicacion) {
-    await procesarEntrante({ telefono: evento.telefono, tipo: "ubicacion", ...evento.ubicacion }, { soloLoEntendido: true });
+    await procesarEntrante({ telefono: evento.telefono, tipo: "ubicacion", ...evento.ubicacion }, { soloLoEntendido: true, textoOriginal: "📍 Ubicación" });
     return;
   }
+  // Foto o video de la casa (en muchos sectores no hay numeración clara): se guarda para el repartidor
+  if (evento.adjunto === "foto" || evento.adjunto === "video") return recibirFoto(admin, evento.telefono, evento.adjunto, evento.archivo ?? null, menu.sesion);
+  // Audio, documento, etc.: no hay respuesta automática; queda anotado para que la oficina lo atienda
+  if (evento.adjunto) return anotarSinRespuesta(admin, evento.telefono, `[${evento.adjunto}]`);
   if (!evento.texto) return;
+
+  // Mucha gente no sabe mandar el pin: una dirección escrita con referencias también vale como ubicación
+  if (pareceDireccion(evento.texto)) {
+    await procesarEntrante({ telefono: evento.telefono, tipo: "direccion", texto: evento.texto }, { soloLoEntendido: true, textoOriginal: evento.texto });
+    if (!traeHoraExplicita(evento.texto)) return;
+  }
 
   const interpretacion = interpretarRespuestaTexto(
     evento.texto,
@@ -60,9 +107,11 @@ async function procesarEvento(admin: Admin, evento: EventoOpenWA): Promise<void>
     configHorasDesdeEntorno(process.env)
   );
   if (!interpretacion) {
-    // No se entiende con el menú: Claude intenta responder; si no puede, lo lee una persona
-    await responderConIA(admin, evento.telefono, evento.texto);
-    return;
+    // No se entiende con el menú: primero Claude intenta responder (solo con IA_RESPALDO_ACTIVA=true
+    // y fuera de la recuperación de mensajes). Si no responde, sigue el flujo normal.
+    if (!opciones.sinAclarar && (await responderConIA(admin, evento.telefono, evento.texto))) return;
+    // Se anota (y se ve en "En vivo"). Si aún falta su hora, se le aclara UNA sola vez.
+    return opciones.sinAclarar ? anotarSinRespuesta(admin, evento.telefono, evento.texto) : aclararHora(admin, evento.telefono, evento.texto);
   }
 
   if (interpretacion.tipo === "rechazo") {
@@ -83,12 +132,87 @@ async function procesarEvento(admin: Admin, evento: EventoOpenWA): Promise<void>
       estado: envio.ok ? "enviado" : "fallido",
       contenido: RESPUESTA_NO,
       proveedor_id: envio.id ?? null,
+      sesion: envio.sesion ?? null,
       error: envio.error ?? null,
     });
     return;
   }
 
-  await procesarEntrante({ telefono: evento.telefono, ...interpretacion.entrante }, { soloLoEntendido: true });
+  await procesarEntrante({ telefono: evento.telefono, ...interpretacion.entrante }, { soloLoEntendido: true, textoOriginal: evento.texto });
+}
+
+const ESTADOS_ABIERTOS = ["recibido", "notificado", "confirmado", "en_ruta", "intento_fallido", "retiro_oficina"];
+async function recibirFoto(admin: Admin, telefono: string, adjunto: string, archivo: string | null, sesion: string | null): Promise<void> {
+  const { data: personas } = await admin.from("destinatarios").select("id").eq("telefono", telefono);
+  const { data: abiertos } = await admin
+    .from("paquetes")
+    .select("id")
+    .in("destinatario_id", (personas ?? []).map((p) => p.id))
+    .in("estado", ESTADOS_ABIERTOS)
+    .order("fecha_recibido");
+  const paquetes = abiertos ?? [];
+
+  await admin.from("mensajes_whatsapp").insert({
+    paquete_id: paquetes[0]?.id ?? null,
+    telefono,
+    direccion: "entrante",
+    tipo: "respuesta",
+    estado: "entregado",
+    contenido: `[${adjunto}]`,
+    // "chatId|messageId": con esto la oficina (y luego el repartidor) puede ver el archivo
+    proveedor_id: archivo,
+    sesion,
+  });
+}
+
+const ACLARACION = "No te entendí";
+
+/** Si la persona aún no dio su hora y nunca se le aclaró, se le explica cómo escribirla (máximo una vez). */
+async function aclararHora(admin: Admin, telefono: string, texto: string): Promise<void> {
+  await anotarSinRespuesta(admin, telefono, texto);
+
+  const { data: personas } = await admin.from("destinatarios").select("id").eq("telefono", telefono);
+  const { count: sinHora } = await admin
+    .from("paquetes")
+    .select("id", { count: "exact", head: true })
+    .in("destinatario_id", (personas ?? []).map((p) => p.id))
+    .in("estado", ["recibido", "notificado"]);
+  if (!sinHora) return;
+
+  const { count: yaAclarado } = await admin
+    .from("mensajes_whatsapp")
+    .select("id", { count: "exact", head: true })
+    .eq("telefono", telefono)
+    .eq("direccion", "saliente")
+    .like("contenido", `${ACLARACION}%`);
+  if (yaAclarado) return;
+
+  const config = configHorasDesdeEntorno(process.env);
+  const aclaracion = textoAclararHora(etiquetaRango(config.desde, config.hasta));
+  const [envio] = await enviarPorWhatsApp([{ telefono, cuerpo: cuerpoTexto(aclaracion) }]);
+  await admin.from("mensajes_whatsapp").insert({
+    paquete_id: null,
+    telefono,
+    direccion: "saliente",
+    tipo: "respuesta",
+    estado: envio.ok ? "enviado" : "fallido",
+    contenido: aclaracion,
+    proveedor_id: envio.id ?? null,
+    sesion: envio.sesion ?? null,
+    error: envio.error ?? null,
+  });
+}
+
+/** Guarda lo que escribió el cliente cuando el sistema no le contesta solo. */
+async function anotarSinRespuesta(admin: Admin, telefono: string, contenido: string): Promise<void> {
+  await admin.from("mensajes_whatsapp").insert({
+    paquete_id: null,
+    telefono,
+    direccion: "entrante",
+    tipo: "respuesta",
+    estado: "entregado",
+    contenido,
+  });
 }
 
 export async function POST(request: Request) {
@@ -119,7 +243,8 @@ export async function POST(request: Request) {
 
   after(async () => {
     try {
-      await procesarEvento(admin, evento);
+      // Solo quien conoce el secreto del webhook puede pedir una recuperación (la firma ya se comprobó arriba)
+      await procesarEvento(admin, evento, { sinAclarar: request.headers.get("x-recuperacion") === "1" });
     } catch (error) {
       console.error("Error procesando evento de OpenWA:", error instanceof Error ? error.message : "desconocido");
       // Se libera el evento: si OpenWA lo reenvía, se procesa de nuevo

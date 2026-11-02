@@ -1,7 +1,8 @@
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { PasoCourier } from "@/components/PasoCourier";
-import { marcarSubidoAlCourier } from "../../actions";
+import { MOTIVOS_SIN_SUBIR } from "@/lib/pruebasCourier";
+import { marcarSinSubir, marcarSubidoAlCourier } from "../../actions";
 
 export const dynamic = "force-dynamic";
 
@@ -33,6 +34,8 @@ export default async function PaginaSubir({ params }: { params: Promise<{ id: st
       cedula={entrega.cedula_leida ?? ""}
       yaSubido={entrega.cargado_en_courier}
       marcarSubido={marcarSubidoAlCourier}
+      marcarNoSubida={marcarSinSubir}
+      motivosNoSubida={MOTIVOS_SIN_SUBIR}
       rutaVolver="/ruta"
       textoVolver="Volver a mi ruta"
     />

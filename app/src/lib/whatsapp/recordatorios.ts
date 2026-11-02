@@ -116,6 +116,7 @@ export async function enviarRecordatorios(ahora: Date = new Date()): Promise<Res
       plantilla: PLANTILLAS[plantilla].nombre,
       estado: resultados[i].ok ? "enviado" : "fallido",
       proveedor_id: resultados[i].id ?? null,
+      sesion: resultados[i].sesion ?? null,
       error: resultados[i].error ?? null,
     }))
   );

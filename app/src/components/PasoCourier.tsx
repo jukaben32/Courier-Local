@@ -12,13 +12,20 @@ interface Props {
   yaSubido: boolean;
   /** Marca la prueba como subida (acción del servidor). */
   marcarSubido: (entregaId: string) => Promise<unknown>;
+  /**
+   * Si se da, la pantalla no deja "subir después": solo se sale subiendo la prueba o diciendo por qué
+   * no se pudo. (La oficina, en los retiros, no lo usa.)
+   */
+  marcarNoSubida?: (entregaId: string, motivo: string) => Promise<unknown>;
+  motivosNoSubida?: readonly string[];
   /** Pantalla a la que se regresa sin subir la prueba. */
   rutaVolver: string;
   textoVolver: string;
 }
 
-export function PasoCourier({ entregaId, urlFoto, guia, nombre, cedula, yaSubido, marcarSubido, rutaVolver, textoVolver }: Props) {
+export function PasoCourier({ entregaId, urlFoto, guia, nombre, cedula, yaSubido, marcarSubido, marcarNoSubida, motivosNoSubida = [], rutaVolver, textoVolver }: Props) {
   const [aviso, setAviso] = useState<string | null>(null);
+  const [verMotivos, setVerMotivos] = useState(false);
   const [guardando, iniciar] = useTransition();
 
   async function copiar(texto: string, etiqueta: string) {
@@ -72,7 +79,11 @@ export function PasoCourier({ entregaId, urlFoto, guia, nombre, cedula, yaSubido
           </button>
           <div className="grid grid-cols-2 gap-2">
             <button type="button" onClick={() => copiar(guia, "Guía")} className={boton}>Copiar guía</button>
-            <button type="button" onClick={() => copiar(cedula.replace(/\D/g, ""), "Cédula")} className={boton}>Copiar cédula</button>
+            {cedula ? (
+              <button type="button" onClick={() => copiar(cedula.replace(/\D/g, ""), "Cédula")} className={boton}>Copiar cédula</button>
+            ) : (
+              <span className="grid place-items-center rounded-lg bg-ambar/15 px-2 text-center text-xs text-tinta-2">La oficina verificará la cédula</span>
+            )}
           </div>
           {aviso && <p role="status" className="text-center text-sm text-tinta-2">{aviso}</p>}
           <button type="button" disabled={guardando} onClick={() => iniciar(async () => { await marcarSubido(entregaId); })} className="w-full rounded-xl bg-tinta py-4 font-semibold text-white disabled:opacity-60">
@@ -81,9 +92,35 @@ export function PasoCourier({ entregaId, urlFoto, guia, nombre, cedula, yaSubido
         </>
       )}
 
-      <Link href={rutaVolver} className="block py-3 text-center text-sm font-medium text-tinta-2 underline">
-        {yaSubido ? textoVolver : `Subir después y ${textoVolver.toLowerCase()}`}
-      </Link>
+      {yaSubido || !marcarNoSubida ? (
+        <Link href={rutaVolver} className="block py-3 text-center text-sm font-medium text-tinta-2 underline">
+          {yaSubido ? textoVolver : `Subir después y ${textoVolver.toLowerCase()}`}
+        </Link>
+      ) : (
+        <div className="border-t border-linea pt-3">
+          {!verMotivos ? (
+            <button type="button" onClick={() => setVerMotivos(true)} className="w-full py-2 text-sm font-medium text-tinta-2 underline">
+              No pude subirla ahora
+            </button>
+          ) : (
+            <div className="space-y-2">
+              <p className="text-sm font-medium">¿Por qué no pudiste?</p>
+              {motivosNoSubida.map((m) => (
+                <button
+                  key={m}
+                  type="button"
+                  disabled={guardando}
+                  onClick={() => iniciar(async () => { await marcarNoSubida(entregaId, m); })}
+                  className={`${boton} disabled:opacity-50`}
+                >
+                  {m}
+                </button>
+              ))}
+              <p className="text-xs text-tinta-2">Queda anotado y la oficina lo ve. La prueba sigue pendiente hasta que la subas.</p>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

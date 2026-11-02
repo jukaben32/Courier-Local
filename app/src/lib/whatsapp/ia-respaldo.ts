@@ -36,13 +36,14 @@ async function redactarRespuesta(texto: string, paquetes: PaqueteContexto[]) {
 
 /**
  * Respaldo para mensajes que el menú no entiende. Si la IA está apagada, si el cliente no tiene
- * paquetes abiertos o si Claude falla, no hace nada y el mensaje lo lee una persona.
+ * paquetes abiertos o si Claude falla, no hace nada (devuelve false) y sigue el flujo normal.
+ * Devuelve true solo si Claude respondió al cliente.
  */
-export async function responderConIA(admin: Admin, telefono: string, texto: string): Promise<void> {
-  if (!iaRespaldoActiva()) return;
+export async function responderConIA(admin: Admin, telefono: string, texto: string): Promise<boolean> {
+  if (!iaRespaldoActiva()) return false;
 
   const paquetes = await paquetesDelCliente(admin, telefono, ESTADOS_CON_RUTA);
-  if (paquetes.length === 0) return;
+  if (paquetes.length === 0) return false;
 
   let salida;
   try {
@@ -50,9 +51,9 @@ export async function responderConIA(admin: Admin, telefono: string, texto: stri
   } catch (error) {
     // Error de la IA: se registra sin datos del cliente y la persona lo atiende
     console.error("Respaldo IA falló:", error instanceof Error ? error.message : "desconocido");
-    return;
+    return false;
   }
-  if (salida.accion === "pasar_a_persona") return;
+  if (salida.accion === "pasar_a_persona") return false;
 
   await admin.from("mensajes_whatsapp").insert({
     paquete_id: paquetes[0].id,
@@ -67,4 +68,5 @@ export async function responderConIA(admin: Admin, telefono: string, texto: stri
     cuerpo: cuerpoTexto(salida.texto),
     resumen: salida.texto,
   });
+  return true;
 }

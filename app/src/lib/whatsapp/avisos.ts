@@ -52,6 +52,7 @@ export function historialDeAvisos(
         plantilla: PLANTILLAS.avisoLlegada.nombre,
         estado: r.ok ? "enviado" : "fallido",
         proveedor_id: r.id ?? null,
+        sesion: r.sesion ?? null,
         error: r.error ?? null,
       });
       if (r.ok) idsAvisados.push(p.id);

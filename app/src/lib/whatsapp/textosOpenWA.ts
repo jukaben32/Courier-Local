@@ -33,7 +33,6 @@ function construirMenu(lineas: Linea[]): { lineas: string; opciones: OpcionMenu[
 }
 
 const LINEA_RETIRO: Linea = { texto: "Paso a buscarlo a la oficina", opcion: { tipo: "retiro" } };
-const LINEA_OTRA_PERSONA: Linea = { texto: "Otra persona lo recibe", opcion: { tipo: "otra_persona" } };
 
 function lineasHoras(ctx: Pick<Contexto, "ahora" | "config">): Linea[] {
   return bloquesDisponibles(ctx.ahora, ctx.config).map((hora) => ({
@@ -52,28 +51,27 @@ export function menuSoloHoras(introduccion: string, ctx: Pick<Contexto, "ahora" 
 }
 
 function avisoLlegada(p: string[], ctx: Contexto): MensajeConMenu {
-  const [nombre, guias, nombreCompleto] = p;
-  const horas = lineasHoras(ctx);
-  const menu = construirMenu([LINEA_RETIRO, ...horas, LINEA_OTRA_PERSONA]);
+  const [nombre, guias] = p;
   const { remitente } = ctx;
 
   const variantes = [
-    `Hola ${nombre} 👋, te escribe *${remitente}* (San Pedro de Macorís).\nTu paquete de Temu (${guias}) ya llegó. ¿Cómo prefieres recibirlo?`,
-    `Buenas ${nombre}, soy de *${remitente}* en San Pedro de Macorís.\nYa tenemos tu paquete de Temu (${guias}). ¿Cómo lo quieres recibir?`,
-    `${nombre}, buen día. Te saluda *${remitente}* (San Pedro de Macorís).\nLlegó tu paquete de Temu (${guias}). Dinos cómo lo prefieres:`,
+    `Hola ${nombre} 👋, te escribe *${remitente}* (San Pedro de Macorís).\nTu paquete de Temu (${guias}) ya llegó.`,
+    `Buenas ${nombre}, soy de *${remitente}* en San Pedro de Macorís.\nYa tenemos tu paquete de Temu (${guias}).`,
+    `${nombre}, buen día. Te saluda *${remitente}* (San Pedro de Macorís).\nLlegó tu paquete de Temu (${guias}).`,
   ];
   const cabecera = variantes[Math.min(variantes.length - 1, Math.floor(ctx.azar() * variantes.length))];
 
-  const sinHoras = horas.length === 0 ? "\nPor hoy ya no hacemos entregas; mañana a primera hora te escribimos para coordinar." : "";
+  // Sin menú numerado: mucha gente se confunde con los números. La hora se escribe ("entre 2 y 4"),
+  // y quien quiera pasar por la oficina o que reciba otra persona simplemente lo dice.
   const texto = [
     cabecera,
-    "Responde solo con el número:",
-    menu.lineas,
-    ...(horas.length > 0 ? [PIE_HORA] : []),
-    `Ten a mano la cédula de ${nombreCompleto}.${sinHoras}`,
+    "Para llevártelo, respóndenos:",
+    "📍 Tu ubicación (toca el clip 📎 > Ubicación > Enviar tu ubicación actual) o, si no puedes, escríbenos tu dirección exacta con una referencia",
+    "🕐 Entre qué hora y qué hora te viene bien recibirlo. Por ejemplo: *entre 2 y 4 de la tarde*",
+    "Si tu casa es difícil de encontrar, mándanos también una foto o video.",
     `Guarda este número para tus próximos avisos. ${PIE_SALIDA}`,
   ].join("\n");
-  return { texto, opciones: menu.opciones };
+  return { texto, opciones: [] };
 }
 
 function recordatorio(p: string[], ctx: Contexto): MensajeConMenu {
