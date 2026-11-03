@@ -120,7 +120,7 @@ async function ejecutarTanda(ahora: Date): Promise<ResumenTanda> {
   }
   let consultaPaquetes = admin
     .from("paquetes")
-    .select("id, numero_guia, nombre_etiqueta, destinatario_id, fecha_recibido, destinatarios(telefono)")
+    .select("id, numero_guia, nombre_etiqueta, destinatario_id, fecha_recibido, repartidor_asignado_id, destinatarios(telefono)")
     .eq("estado", "recibido")
     .order("fecha_recibido");
   // ENVIO_SOLO_DESDE: solo los paquetes recibidos desde ese día (el listado de hoy)
@@ -165,6 +165,17 @@ async function ejecutarTanda(ahora: Date): Promise<ResumenTanda> {
     }
   }
 
+  // Cuenta propia de cada repartidor (repartidores.sesion_openwa): el aviso sale del número de su repartidor.
+  // Solo cuentan las que están configuradas en OPENWA_SESSION_IDS; la primera es la de la oficina (respaldo).
+  const { data: conCuenta } = await admin.from("repartidores").select("id, sesion_openwa").not("sesion_openwa", "is", null);
+  const sesionesConfiguradas = new Set(configs.map((c) => c.sessionId));
+  const cuentaDeRepartidor = new Map<string, string>();
+  for (const f of (conCuenta ?? []) as { id: string; sesion_openwa: string | null }[]) {
+    if (f.sesion_openwa && sesionesConfiguradas.has(f.sesion_openwa)) cuentaDeRepartidor.set(f.id, f.sesion_openwa);
+  }
+  const respaldo = cuentaDeRepartidor.size > 0 ? primera : undefined;
+  const repartidorDe = new Map(((paquetes ?? []) as unknown as { id: string; repartidor_asignado_id: string | null }[]).map((p) => [p.id, p.repartidor_asignado_id]));
+
   // Plan de cada cuenta: cuántas personas puede avisar ahora, o por qué no
   const planes: { sesion: string; plan: PlanTanda; enviadosHoy: number; caida: boolean }[] = configs.map((c, k) => {
     const d = diaDeCuenta(c.sessionId);
@@ -186,9 +197,11 @@ async function ejecutarTanda(ahora: Date): Promise<ResumenTanda> {
     cola.map((g): PersonaEnCola & { grupo: typeof g } => ({
       telefono: g[0].destinatarios!.telefono,
       preferida: preferidas.get(g[0].destinatarios!.telefono),
+      asignada: g.map((p) => repartidorDe.get(p.id)).map((id) => (id ? cuentaDeRepartidor.get(id) : undefined)).find(Boolean) ?? null,
       grupo: g,
     })),
-    planes.map((p) => ({ sesion: p.sesion, cupo: p.plan.enviar, enviadosHoy: p.enviadosHoy, caida: p.caida }))
+    planes.map((p) => ({ sesion: p.sesion, cupo: p.plan.enviar, enviadosHoy: p.enviadosHoy, caida: p.caida })),
+    { respaldo }
   );
 
   const base = { enCola: cola.length, enviadosHoy: dia.enviadosHoy, terminaHacia: horaEstimadaFin(ahora, cola.length, ritmo) };

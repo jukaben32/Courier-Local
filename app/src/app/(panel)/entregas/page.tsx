@@ -4,12 +4,13 @@ import { plazoSubidaMin, resumirPruebas, type EntregaFila, type NivelPrueba } fr
 import { createClient } from "@/lib/supabase/server";
 import { Dato, Seccion } from "../resumen/Tarjetas";
 import { Refrescar } from "../en-vivo/Refrescar";
+import { AccionesPrueba } from "./AccionesPrueba";
 import { AccionesVerificacion } from "./AccionesVerificacion";
 
 export const dynamic = "force-dynamic";
 
 const COLUMNAS =
-  "id, resultado, creado_en, cargado_en_courier, cargado_en_courier_en, verificacion, motivo_sin_subir, foto_cedula_destinatario_url, repartidores(nombre), paquetes(numero_guia, nombre_etiqueta)";
+  "id, resultado, creado_en, cargado_en_courier, cargado_en_courier_en, verificacion, motivo_sin_subir, cedula_leida, foto_cedula_destinatario_url, repartidores(nombre), paquetes(numero_guia, nombre_etiqueta)";
 
 interface FilaBD {
   id: string;
@@ -19,6 +20,7 @@ interface FilaBD {
   cargado_en_courier_en: string | null;
   verificacion: "verificada" | "pendiente";
   motivo_sin_subir: string | null;
+  cedula_leida: string | null;
   foto_cedula_destinatario_url: string | null;
   repartidores: { nombre: string } | null;
   paquetes: { numero_guia: string; nombre_etiqueta: string } | null;
@@ -74,6 +76,13 @@ export default async function PaginaEntregas() {
   const { data: firmadas } = rutas.length ? await supabase.storage.from("evidencias").createSignedUrls(rutas, 600) : { data: [] };
   const urlDe = new Map((firmadas ?? []).map((f) => [f.path, f.signedUrl]));
 
+  // Fotos de las pruebas sin subir, para que la oficina las suba al courier desde aquí (enlaces temporales)
+  const rutasSinSubir = resumen.pendientes
+    .map((p) => unicas.get(p.id)?.foto_cedula_destinatario_url)
+    .filter((r): r is string => !!r);
+  const { data: firmadasSinSubir } = rutasSinSubir.length ? await supabase.storage.from("evidencias").createSignedUrls(rutasSinSubir, 1800) : { data: [] };
+  const urlSinSubir = new Map((firmadasSinSubir ?? []).map((f) => [f.path, f.signedUrl]));
+
   const entregadasHoy = resumen.porRepartidor.reduce((t, r) => t + r.entregadas, 0);
   const fallidasHoy = resumen.porRepartidor.reduce((t, r) => t + r.fallidas, 0);
   const atrasadas = resumen.pendientes.filter((p) => p.nivel !== "ok").length;
@@ -97,7 +106,7 @@ export default async function PaginaEntregas() {
         <Dato titulo="No se pudo entregar" valor={String(fallidasHoy)} nota="intentos de hoy" />
       </div>
 
-      <Seccion titulo="Pruebas sin subir al courier" ayuda="La más atrasada primero. Si el repartidor dijo por qué no pudo, aparece en la última columna.">
+      <Seccion titulo="Pruebas sin subir al courier" ayuda="La más atrasada primero. Descarga la foto (ya lleva la guía como nombre), súbela al courier y pulsa «Ya la subí».">
         {resumen.pendientes.length === 0 ? (
           <p className="text-sm font-medium text-verde">No hay pruebas pendientes. ✅</p>
         ) : (
@@ -108,20 +117,40 @@ export default async function PaginaEntregas() {
                   <th className="py-1 pr-3">Hace</th>
                   <th className="py-1 pr-3">Repartidor</th>
                   <th className="py-1 pr-3">Paquete</th>
+                  <th className="py-1 pr-3">Foto</th>
+                  <th className="py-1 pr-3">Subir</th>
                   <th className="py-1">Motivo</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-linea">
-                {resumen.pendientes.map((p) => (
+                {resumen.pendientes.map((p) => {
+                  const fila = unicas.get(p.id);
+                  const ruta = fila?.foto_cedula_destinatario_url ?? null;
+                  const urlFoto = ruta ? (urlSinSubir.get(ruta) ?? null) : null;
+                  return (
                   <tr key={p.id}>
                     <td className={`py-2 pr-3 tabular-nums ${COLOR[p.nivel]}`}>{hace(p.minutos)}</td>
                     <td className="py-2 pr-3">{p.repartidor ?? "Oficina"}</td>
                     <td className="py-2 pr-3">
                       {p.nombre} <span className="font-mono text-xs text-tinta-2">{p.guia}</span>
                     </td>
+                    <td className="py-2 pr-3">
+                      {urlFoto ? (
+                        <a href={urlFoto} target="_blank" rel="noreferrer">
+                          {/* eslint-disable-next-line @next/next/no-img-element -- enlace temporal de un archivo privado */}
+                          <img src={urlFoto} alt={`Prueba ${p.guia}`} className="h-14 w-20 rounded-md object-cover" />
+                        </a>
+                      ) : (
+                        <span className="text-xs text-tinta-2">Sin foto</span>
+                      )}
+                    </td>
+                    <td className="py-2 pr-3">
+                      <AccionesPrueba entregaId={p.id} urlFoto={urlFoto} guia={p.guia} cedula={fila?.cedula_leida ?? ""} />
+                    </td>
                     <td className="py-2 text-xs text-tinta-2">{p.motivoSinSubir ?? "—"}</td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           </div>

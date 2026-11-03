@@ -29,6 +29,28 @@ async function entregaPendiente(entregaId: string) {
   } | null;
 }
 
+/**
+ * La oficina subió la prueba al programa del courier (ya sea una entrega suya o de un repartidor que no
+ * pudo). Desde ese instante deja de contar como pendiente.
+ */
+export async function marcarPruebaSubida(entregaId: string): Promise<{ error?: string }> {
+  const usuario = await obtenerUsuarioActual();
+  if (!usuario || !esOficina(usuario) || !Id.safeParse(entregaId).success) return { error: "No tienes permiso." };
+
+  const { data, error } = await createAdminClient()
+    .from("entregas")
+    .update({ cargado_en_courier: true, cargado_en_courier_en: new Date().toISOString() })
+    .eq("id", entregaId)
+    .eq("resultado", "entregado")
+    .eq("cargado_en_courier", false)
+    .select("id");
+  if (error) return { error: "No se pudo guardar. Intenta de nuevo." };
+  if (!data?.length) return { error: "Esa prueba ya estaba subida." };
+
+  revalidatePath("/entregas");
+  return {};
+}
+
 /** Vuelve a leer la cédula con la IA, ahora que quizá ya funciona. */
 export async function reintentarVerificacion(entregaId: string): Promise<ResultadoVerificacion> {
   const usuario = await obtenerUsuarioActual();

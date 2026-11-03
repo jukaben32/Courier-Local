@@ -1,22 +1,24 @@
 @echo off
 title Courier Local - iniciar todo
 echo Encendiendo OpenWA, el servidor de Courier y el programador de envios...
+echo.
 
-rem 1) OpenWA (WhatsApp)
+echo [1/3] Abriendo OpenWA (WhatsApp)...
 start "OpenWA" cmd /k "set PATH=C:\Users\hp\tools\node22;%PATH% && cd /d C:\Users\hp\MisProyectos\OpenWA && node dist/main"
 
-rem Esperar a que OpenWA arranque antes de levantar el servidor
-timeout /t 20 /nobreak >nul
+echo      Esperando 20 segundos a que OpenWA arranque. NO cierres esta ventana...
+ping -n 21 127.0.0.1 >nul
 
-rem 2) Servidor de Courier (recibe las respuestas de los clientes)
+echo [2/3] Abriendo el servidor de Courier...
 start "Courier servidor" cmd /k "cd /d C:\Users\hp\MisProyectos\Courier-Local\app && npm run dev:prueba"
 
-timeout /t 15 /nobreak >nul
+echo      Esperando 15 segundos a que el servidor arranque...
+ping -n 16 127.0.0.1 >nul
 
-rem 3) Programador (manda los avisos poco a poco)
+echo [3/3] Abriendo el programador de envios...
 start "Courier programador" cmd /k "cd /d C:\Users\hp\MisProyectos\Courier-Local\app && npm run programador"
 
 echo.
-echo Listo. Se abrieron 3 ventanas: NO las cierres mientras quieras que el bot funcione.
-echo Cuando termines, avisale a Claude para comprobar que todo quedo conectado.
+echo Listo. Deben haber quedado 3 ventanas abiertas (OpenWA, servidor y programador).
+echo NO las cierres mientras quieras que el bot funcione. Esta ventana si puedes cerrarla.
 pause

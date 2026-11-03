@@ -132,3 +132,43 @@ describe("respuestas de los clientes por varias cuentas", () => {
     expect(evento()).not.toHaveProperty("sesionId");
   });
 });
+
+describe("cuenta propia de cada repartidor", () => {
+  const con = (telefono: string, asignada?: string | null): PersonaEnCola => ({ telefono, asignada });
+  const cuentas = (extra: Record<string, Partial<CupoCuenta>> = {}): CupoCuenta[] =>
+    ["oficina", "julius", "ana"].map((s) => ({ sesion: s, cupo: 5, enviadosHoy: 0, caida: false, ...(extra[s] ?? {}) }));
+  const sesionDe = (r: Map<string, PersonaEnCola[]>, tel: string) => [...r].find(([, ps]) => ps.some((p) => p.telefono === tel))?.[0];
+
+  it("cada aviso sale de la cuenta de su repartidor", () => {
+    const r = repartirCola([con("1", "julius"), con("2", "ana"), con("3", "julius")], cuentas(), { respaldo: "oficina" });
+    expect(sesionDe(r, "1")).toBe("julius");
+    expect(sesionDe(r, "2")).toBe("ana");
+    expect(sesionDe(r, "3")).toBe("julius");
+  });
+
+  it("sin cuenta propia sale por la oficina, nunca por la de otro repartidor", () => {
+    const r = repartirCola([con("1", null), con("2", undefined)], cuentas(), { respaldo: "oficina" });
+    expect(sesionDe(r, "1")).toBe("oficina");
+    expect(sesionDe(r, "2")).toBe("oficina");
+  });
+
+  it("si la cuenta del repartidor está caída, sale por la oficina", () => {
+    const r = repartirCola([con("1", "julius")], cuentas({ julius: { caida: true } }), { respaldo: "oficina" });
+    expect(sesionDe(r, "1")).toBe("oficina");
+  });
+
+  it("si la cuenta del repartidor solo está sin cupo ahora, espera su turno", () => {
+    const r = repartirCola([con("1", "julius")], cuentas({ julius: { cupo: 0 } }), { respaldo: "oficina" });
+    expect(sesionDe(r, "1")).toBeUndefined();
+  });
+
+  it("si todo está caído no sale nada", () => {
+    const r = repartirCola([con("1", "julius")], cuentas({ julius: { caida: true }, oficina: { caida: true } }), { respaldo: "oficina" });
+    expect(sesionDe(r, "1")).toBeUndefined();
+  });
+
+  it("la cuenta propia manda sobre la cuenta que le escribió antes", () => {
+    const r = repartirCola([{ telefono: "1", asignada: "julius", preferida: "ana" }], cuentas(), { respaldo: "oficina" });
+    expect(sesionDe(r, "1")).toBe("julius");
+  });
+});
