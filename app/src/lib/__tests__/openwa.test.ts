@@ -199,15 +199,17 @@ describe("textos de OpenWA", () => {
 describe("mensaje de cierre", () => {
   it("lleva el horario, el repartidor con su teléfono y la cédula", () => {
     const t = textoConfirmacionFinal("1 pm a 2 pm", "María Pérez", { nombre: "Isamar Santana", telefono: "829-555-0123" });
-    expect(t).toContain("Te lo lleva Isamar (829-555-0123) en el horario de 1 pm a 2 pm");
+    expect(t).toContain("Tu repartidor asignado (829-555-0123) pasará en el horario de 1 pm a 2 pm");
+    expect(t).not.toContain("Isamar");
     expect(t).toContain("cédula de María Pérez");
     expect(t).toContain("escríbele directo");
   });
 
   it("sin repartidor o sin teléfono sigue siendo un mensaje correcto", () => {
-    expect(textoConfirmacionFinal(null, "Ana", null)).toBe("Listo ✅ Tu repartidor pasará.\nTen a mano la cédula de Ana.");
+    expect(textoConfirmacionFinal(null, "Ana", null)).toBe("Listo ✅ Tu repartidor asignado pasará.\nTen a mano la cédula de Ana.");
     const sinTelefono = textoConfirmacionFinal("2 pm a 3 pm", "Ana", { nombre: "Luis Gómez", telefono: null });
-    expect(sinTelefono).toContain("Te lo lleva Luis en el horario");
+    expect(sinTelefono).toContain("Tu repartidor asignado pasará en el horario");
+    expect(sinTelefono).not.toContain("Luis");
     expect(sinTelefono).not.toContain("escríbele");
   });
 });
@@ -484,7 +486,8 @@ describe("aviso 'voy en camino'", () => {
     expect(describirEspera(60)).toBe("aproximadamente 1 hora");
     expect(describirEspera(95)).toBe("aproximadamente 1 h 35 min");
     const t = textoVoyEnCamino("Julius Manuel Perez", 28, "Ana Gómez");
-    expect(t).toContain("Julius va en camino");
+    expect(t).toContain("Tu repartidor asignado va en camino");
+    expect(t).not.toContain("Julius");
     expect(t).toContain("unos 30 minutos");
     expect(t).toContain("cédula de Ana Gómez");
   });

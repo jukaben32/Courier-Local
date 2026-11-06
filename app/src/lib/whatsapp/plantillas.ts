@@ -179,17 +179,15 @@ export function textoConfirmacionFinal(
   paraManana = false
 ): string {
   const cuando = horario ? ` ${paraManana ? "mañana " : ""}en el horario de ${horario}` : paraManana ? " mañana" : "";
-  const nombre = repartidor?.nombre.trim().split(/\s+/)[0];
-  const quien = nombre
-    ? `Te lo lleva ${nombre}${repartidor?.telefono ? ` (${repartidor.telefono})` : ""}`
-    : "Tu repartidor pasará";
+  // Nunca se nombra al repartidor: siempre "tu repartidor asignado" (con su teléfono si lo hay).
+  const quien = `Tu repartidor asignado${repartidor?.telefono ? ` (${repartidor.telefono})` : ""} pasará`;
   const contacto = repartidor?.telefono ? " Cualquier cambio, escríbele directo." : "";
   return `Listo ✅ ${quien}${cuando}.\nTen a mano la cédula de ${nombreEtiqueta.trim()}.${contacto}`;
 }
 
 export function textoUbicacionRecibida(horario: string | null, nombreEtiqueta: string): string {
   const cuando = horario ? ` en el horario de ${horario}` : "";
-  return `Ubicación recibida ✅ Tu repartidor pasará${cuando}. Ten lista la cédula de ${nombreEtiqueta.trim()}.`;
+  return `Ubicación recibida ✅ Tu repartidor asignado pasará${cuando}. Ten lista la cédula de ${nombreEtiqueta.trim()}.`;
 }
 
 /** "Unos 20 minutos", redondeado de 5 en 5 (nunca promete menos de 10). */
@@ -203,7 +201,7 @@ export function describirEspera(minutos: number): string {
 }
 
 /** Aviso único cuando el repartidor sale hacia la casa del cliente. */
-export function textoVoyEnCamino(repartidor: string | null, minutos: number, nombreEtiqueta: string): string {
-  const quien = repartidor ? repartidor.trim().split(/\s+/)[0] : "Tu repartidor";
-  return `${quien} va en camino a tu casa 🛵 Llegará en ${describirEspera(minutos)}.\nTen a mano la cédula de ${nombreEtiqueta.trim()} y que alguien pueda recibir.`;
+export function textoVoyEnCamino(_repartidor: string | null, minutos: number, nombreEtiqueta: string): string {
+  // Nunca se nombra al repartidor (el parámetro se conserva por compatibilidad con quien llama).
+  return `Tu repartidor asignado va en camino a tu casa 🛵 Llegará en ${describirEspera(minutos)}.\nTen a mano la cédula de ${nombreEtiqueta.trim()} y que alguien pueda recibir.`;
 }
