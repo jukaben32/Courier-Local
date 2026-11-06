@@ -8,6 +8,8 @@ import { etiquetaRango, horaDeColumna } from "@/lib/whatsapp/horas";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { PrepararSinSenal } from "../PrepararSinSenal";
+import { TEXTO_RESULTADO_LLAMADA, type ResultadoLlamada } from "@/lib/demora";
+import { RegistrarLlamada } from "./RegistrarLlamada";
 import { RutaOptimizada, type ParadaRuta } from "./RutaOptimizada";
 
 export const dynamic = "force-dynamic";
@@ -118,6 +120,20 @@ export default async function PaginaRuta() {
     }
   }
   const contactos = resumirContactos(mensajesContacto);
+
+  // Última llamada anotada a cada cliente (si la tabla aún no existe, simplemente no hay datos)
+  const idsEsperando = esperando.map((p) => p.id);
+  const ultimaLlamada = new Map<string, { resultado: string; creada_en: string }>();
+  if (idsEsperando.length > 0) {
+    const { data: llamadasDb } = await supabase
+      .from("llamadas")
+      .select("paquete_id, resultado, creada_en")
+      .in("paquete_id", idsEsperando)
+      .order("creada_en", { ascending: false });
+    for (const l of (llamadasDb ?? []) as { paquete_id: string; resultado: string; creada_en: string }[]) {
+      if (!ultimaLlamada.has(l.paquete_id)) ultimaLlamada.set(l.paquete_id, l);
+    }
+  }
   const sinRespuesta = ordenarSinRespuesta(
     esperando.map((p) => ({
       paquete: p,
@@ -292,6 +308,13 @@ export default async function PaginaRuta() {
                     {contacto?.ultimoMensaje && <span className="ml-2 font-medium">· escribió: «{contacto.ultimoMensaje}»</span>}
                   </p>
                   {tel && <p className="text-xs tabular-nums text-tinta-2">{formatearTelefono(tel)}</p>}
+                  {ultimaLlamada.get(p.id) && (
+                    <p className="text-xs text-tinta-2">
+                      Última llamada: {TEXTO_RESULTADO_LLAMADA[ultimaLlamada.get(p.id)!.resultado as ResultadoLlamada] ?? ultimaLlamada.get(p.id)!.resultado}
+                      {" · "}
+                      {new Date(ultimaLlamada.get(p.id)!.creada_en).toLocaleTimeString("es-DO", { timeZone: "America/Santo_Domingo", hour: "numeric", minute: "2-digit", hour12: true })}
+                    </p>
+                  )}
                   <div className="mt-2 grid grid-cols-3 gap-2 text-sm font-semibold">
                     {tel ? (
                       <>
@@ -307,6 +330,7 @@ export default async function PaginaRuta() {
                       <Link href={`/entrega/${p.id}`} className="rounded-lg border border-linea py-2.5 text-center">Entregar</Link>
                     )}
                   </div>
+                  {tel && <RegistrarLlamada paqueteId={p.id} telefono={tel} />}
                 </li>
               );
             })}

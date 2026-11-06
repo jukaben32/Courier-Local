@@ -61,3 +61,18 @@ export async function enviarAvisos(): Promise<EstadoAvisos> {
     ? { error: `${base} No se pudo avisar a ${fallidos}: siguen como "Recibido" para reintentar o llamar.` }
     : { mensaje: base };
 }
+
+/** El paquete llegó a esta oficina por error (le toca a otra): sale de avisos y rutas y queda para devolver al courier. */
+export async function marcarMalEncaminado(formData: FormData): Promise<void> {
+  const usuario = await obtenerUsuarioActual();
+  if (!usuario || !esOficina(usuario)) return;
+  const id = String(formData.get("id") ?? "");
+  if (!id) return;
+  const supabase = await createClient();
+  await supabase
+    .from("paquetes")
+    .update({ estado: "devuelto", motivo_devolucion: "otro", fecha_devolucion: new Date().toISOString() })
+    .eq("id", id)
+    .in("estado", ["recibido", "notificado", "confirmado", "intento_fallido", "retiro_oficina"]);
+  revalidatePath("/paquetes");
+}

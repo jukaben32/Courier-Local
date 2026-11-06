@@ -8,6 +8,7 @@ import { Dato } from "../resumen/Tarjetas";
 import { TarjetaRepartidor, type FilaBono, type ParametrosBono } from "@/components/TarjetaRepartidor";
 import { EquilibrioReparto } from "./EquilibrioReparto";
 import { PanelCobertura, type CoberturaVigente } from "./PanelCobertura";
+import { TelefonosRepartidores } from "./TelefonosRepartidores";
 
 export const dynamic = "force-dynamic";
 
@@ -156,6 +157,8 @@ export default async function PaginaRepartidores() {
       </div>
 
       <EquilibrioReparto />
+
+      <TelefonosRepartidores />
 
       <PanelCobertura
         repartidores={opciones}

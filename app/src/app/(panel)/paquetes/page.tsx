@@ -5,6 +5,8 @@ import { nivelPlazo, type NivelPlazo } from "@/lib/plazo";
 import { createClient } from "@/lib/supabase/server";
 import { whatsappSimulado } from "@/lib/whatsapp/cliente";
 import { BotonAvisos } from "./BotonAvisos";
+import { BotonMalEncaminado } from "./BotonMalEncaminado";
+import { diasEnOficina, nivelDemora, TEXTO_RESULTADO_LLAMADA, type ResultadoLlamada } from "@/lib/demora";
 
 // Las acciones de esta pantalla (enviar cientos de avisos de una vez) pueden tardar más que el límite por defecto
 export const maxDuration = 120;
@@ -88,6 +90,26 @@ export default async function PaginaPaquetes({
     supabase.from("paquetes").select("id", { count: "exact", head: true }).eq("estado", "recibido"),
   ]);
   const filas = (data ?? []) as unknown as FilaPaquete[];
+
+  // Llamadas anotadas por los repartidores (si la tabla aún no existe, no hay datos y todo sigue igual)
+  const llamadasPorPaquete = new Map<string, { total: number; ultimo: string }>();
+  if (filas.length > 0) {
+    const { data: llamadasDb } = await supabase
+      .from("llamadas")
+      .select("paquete_id, resultado, creada_en")
+      .in("paquete_id", filas.map((f) => f.id))
+      .order("creada_en", { ascending: false });
+    for (const l of (llamadasDb ?? []) as { paquete_id: string; resultado: string }[]) {
+      const previo = llamadasPorPaquete.get(l.paquete_id);
+      llamadasPorPaquete.set(l.paquete_id, { total: (previo?.total ?? 0) + 1, ultimo: previo?.ultimo ?? l.resultado });
+    }
+  }
+  const textoLlamadas = (id: string) => {
+    const l = llamadasPorPaquete.get(id);
+    if (!l) return null;
+    return `📞 ${l.total} ${l.total === 1 ? "llamada" : "llamadas"} · última: ${TEXTO_RESULTADO_LLAMADA[l.ultimo as ResultadoLlamada] ?? l.ultimo}`;
+  };
+  const ahoraDias = new Date();
 
   return (
     <div className="space-y-5">
@@ -181,6 +203,11 @@ export default async function PaginaPaquetes({
                 {TEXTO_ESTADO[p.estado] ?? p.estado}
                 {p.intentos_realizados > 0 && activo && <span className="ml-2 text-xs font-normal text-tinta-2">({p.intentos_realizados}/3 intentos)</span>}
               </p>
+              {activo && nivelDemora(diasEnOficina(new Date(p.fecha_recibido), ahoraDias)) !== "normal" && (
+                <p className="text-xs font-semibold text-rojo">{diasEnOficina(new Date(p.fecha_recibido), ahoraDias)} días en la oficina: riesgo de penalidad</p>
+              )}
+              {textoLlamadas(p.id) && <p className="text-xs text-tinta-2">{textoLlamadas(p.id)}</p>}
+              {activo && p.estado !== "en_ruta" && <BotonMalEncaminado id={p.id} guia={p.numero_guia} />}
             </li>
           );
         })}
@@ -198,12 +225,13 @@ export default async function PaginaPaquetes({
               <th className="px-4 py-3">Sector</th>
               <th className="px-4 py-3">Repartidor</th>
               <th className="px-4 py-3">Estado</th>
+              <th className="px-4 py-3"></th>
             </tr>
           </thead>
           <tbody>
             {filas.length === 0 && (
               <tr>
-                <td colSpan={8} className="px-4 py-10 text-center text-tinta-2">
+                <td colSpan={9} className="px-4 py-10 text-center text-tinta-2">
                   No hay paquetes en esta vista.
                 </td>
               </tr>
@@ -244,7 +272,12 @@ export default async function PaginaPaquetes({
                     {p.intentos_realizados > 0 && activo && (
                       <span className="ml-2 text-xs text-tinta-2">({p.intentos_realizados}/3 intentos)</span>
                     )}
+                    {activo && nivelDemora(diasEnOficina(new Date(p.fecha_recibido), ahoraDias)) !== "normal" && (
+                      <span className="block text-xs font-semibold text-rojo">{diasEnOficina(new Date(p.fecha_recibido), ahoraDias)} días en oficina</span>
+                    )}
+                    {textoLlamadas(p.id) && <span className="block text-xs text-tinta-2">{textoLlamadas(p.id)}</span>}
                   </td>
+                  <td className="px-4 py-3 text-right">{activo && p.estado !== "en_ruta" && <BotonMalEncaminado id={p.id} guia={p.numero_guia} />}</td>
                 </tr>
               );
             })}
